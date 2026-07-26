@@ -5,7 +5,7 @@ export const ArticleSchema = z.object({
 	title: z.string(),
 	link: z.string(),
 	guid: z.string(),
-	pubData: z.coerce.date(),
+	pubDate: z.coerce.date(),
 	description: z.string(),
 	sourceName: z.string(),
 });
