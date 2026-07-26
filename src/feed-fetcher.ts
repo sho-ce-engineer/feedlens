@@ -1,4 +1,5 @@
 import Parser from "rss-parser";
+import urls from "../feeds.json";
 import {
 	type Article,
 	type ArticleError,
@@ -9,12 +10,6 @@ type FetchError = {
 	reason: unknown;
 	url?: string; //実際にはurlsとindexは同じものから参照しているためundefinedにはなり得ない
 };
-
-//feeds.json
-const urls = [
-	"https://api.findy-code.io/rss/media/recent",
-	"https://rss.itmedia.co.jp/rss/2.0/news_nettopics.xml",
-];
 
 const parser = new Parser();
 
