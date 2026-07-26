@@ -12,6 +12,15 @@ export const ArticleSchema = z.object({
 
 export type Article = z.infer<typeof ArticleSchema>;
 
+export type ArticleError = {
+	error: z.ZodError;
+	siteName?: string;
+	link?: string;
+	pageName?: string;
+	pageLink?: string;
+	pageId?: string;
+};
+
 // 記事評価後
 export const ClassifieldArticleSchema = z.object({
 	article: ArticleSchema,
