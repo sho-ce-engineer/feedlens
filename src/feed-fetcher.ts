@@ -33,9 +33,9 @@ export const fetchFeeds = async (): Promise<{
 				const parsed = ArticleSchema.safeParse({
 					title: rawItem.title,
 					link: rawItem.link,
-					guid: rawItem.guid,
+					guid: rawItem.guid ?? rawItem.link,
 					pubDate: rawItem.pubDate,
-					description: rawItem.contentSnippet ?? rawItem.content,
+					description: rawItem.contentSnippet ?? rawItem.content ?? "",
 					sourceName: feed.title,
 				});
 				if (parsed.success) {
