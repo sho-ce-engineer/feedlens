@@ -7,3 +7,13 @@ if (!process.env.GEMINI_API_KEY) {
 export const ai = new GoogleGenAI({
 	apiKey: process.env.GEMINI_API_KEY,
 });
+
+if (!process.env.DISCORD_HOT_WEBHOOK_URL) {
+	throw new Error("DISCORD_HOT_WEBHOOK_URL is not set");
+}
+export const hotNewsWebhookUrl = process.env.DISCORD_HOT_WEBHOOK_URL;
+
+if (!process.env.DISCORD_DIGEST_WEBHOOK_URL) {
+	throw new Error("DISCORD_DIGEST_WEBHOOK_URL is not set");
+}
+export const digestWebhookUrl = process.env.DISCORD_DIGEST_WEBHOOK_URL;
