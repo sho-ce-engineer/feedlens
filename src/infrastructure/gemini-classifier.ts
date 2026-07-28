@@ -2,7 +2,8 @@ import { ApiError } from "@google/genai";
 import * as z from "zod";
 import { ai } from "../config";
 import type { Article } from "../domain/article";
-import type { Classifier, Result } from "../domain/classifier";
+import type { Classifier } from "../domain/classifier";
+import type { Result } from "../domain/result";
 
 const model = "gemini-3.5-flash";
 
