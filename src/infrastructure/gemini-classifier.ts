@@ -10,6 +10,10 @@ const isHotSchema = z.object({
 	isHot: z.boolean(),
 });
 
+const summarizeSchema = z.object({
+	summarize: z.string(),
+});
+
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const callGemini = async (
@@ -61,7 +65,7 @@ const callGeminiWithRetry = async (
 	};
 };
 
-class GeminiClassifier implements Classifier {
+export class GeminiClassifier implements Classifier {
 	async judgeIsHot(article: Article): Promise<Result<boolean>> {
 		const isHotPrompt = `
         あなたは、ジュニアエンジニアのキャリア形成に役立つ技術記事を選定するアシスタントです。
@@ -110,6 +114,52 @@ class GeminiClassifier implements Classifier {
 	}
 
 	async summarize(article: Article): Promise<Result<string>> {
-		// ここに中身
+		const summarizePrompt = `
+        あなたは、ジュニアエンジニアの情報収集を助けるアシスタントです。
+        以下のURLの記事本文を読み、内容を要約してください。
+
+        要約の目的は、読者がこの要約を読むだけである程度内容を把握でき、
+        「これは本文まで読む価値がありそうだ」と感じた場合に記事へアクセスするかどうかを
+        判断できるようにすることです。
+
+        単なる一言コメントではなく、記事が何を伝えているのか具体的に分かる要約にしてください。
+
+        URL: ${article.link}
+        タイトル: ${article.title}
+        本文抜粋: ${article.description}`;
+
+		const callResult = await callGeminiWithRetry(
+			summarizePrompt,
+			summarizeSchema,
+			[{ type: "url_context" }],
+		);
+		if (!callResult.success) {
+			return { success: false, error: callResult.error };
+		}
+		const res = callResult.data;
+
+		if (!res.output_text) {
+			return {
+				success: false,
+				error: "summarize: Gemini response contained no output_text.",
+			};
+		}
+
+		let output: ReturnType<typeof summarizeSchema.safeParse>;
+
+		try {
+			output = summarizeSchema.safeParse(JSON.parse(res.output_text));
+		} catch {
+			return {
+				success: false,
+				error: `summarize: failed to parse output_text as JSON: ${res.output_text}`,
+			};
+		}
+
+		if (output.success === true) {
+			return { success: true, data: output.data.summarize };
+		} else {
+			return { success: false, error: output.error.toString() };
+		}
 	}
 }
