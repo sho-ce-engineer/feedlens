@@ -27,4 +27,4 @@ export const ClassifieldArticleSchema = z.object({
 	summary: z.string(),
 });
 
-export type ClassifieldArticle = z.infer<typeof ClassifieldArticleSchema>;
+export type ClassifiedArticle = z.infer<typeof ClassifieldArticleSchema>;
