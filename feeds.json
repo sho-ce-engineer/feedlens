@@ -1,4 +1,14 @@
 [
 	"https://api.findy-code.io/rss/media/recent",
-	"https://rss.itmedia.co.jp/rss/2.0/news_nettopics.xml"
+	"https://rss.itmedia.co.jp/rss/2.0/itmedia_all.xml",
+	"https://rss.itmedia.co.jp/rss/2.0/news_bursts.xml",
+	"https://rss.itmedia.co.jp/rss/2.0/news_security.xml",
+	"https://rss.itmedia.co.jp/rss/2.0/aiplus.xml",
+	"https://rss.itmedia.co.jp/rss/2.0/business.xml",
+	"https://rss.itmedia.co.jp/rss/2.0/ait.xml",
+	"https://rss.itmedia.co.jp/rss/2.0/techtarget.xml",
+	"https://rss.itmedia.co.jp/rss/2.0/tf_medical.xml",
+	"https://logmi.jp/RSS/feed.xml",
+	"https://zenn.dev/feed",
+	"https://qiita.com/popular-items/feed.atom"
 ]
