@@ -47,9 +47,20 @@ export const notifyDigest = async (
 		value: article.link.slice(0, 1024), //1024文字制限に対応
 	}));
 
-	const groupedFields = [];
-	for (let i = 0; fields.length > i; i = i + 25) {
-		groupedFields.push(fields.slice(i, i + 25));
+	const groupedFields: (typeof fields)[] = [];
+	let currentGroup: typeof fields = [];
+	let currentLength = 0;
+
+	for (const field of fields) {
+		const fieldLength = field.name.length + field.value.length;
+
+		if (currentGroup.length >= 25 || currentLength + fieldLength >= 5500) {
+			groupedFields.push(currentGroup);
+			currentGroup = [];
+			currentLength = 0;
+		}
+		currentGroup.push(field);
+		currentLength = currentLength + fieldLength;
 	}
 	const embeds = groupedFields.map((group) => ({
 		title: "今日のダイジェスト",
