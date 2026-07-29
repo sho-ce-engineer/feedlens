@@ -62,8 +62,13 @@ export const notifyDigest = async (
 		currentGroup.push(field);
 		currentLength = currentLength + fieldLength;
 	}
-	const embeds = groupedFields.map((group) => ({
-		title: "今日のダイジェスト",
+	groupedFields.push(currentGroup);
+
+	const toDay = new Date().toLocaleDateString("ja-JP", {
+		timeZone: "Asia/Tokyo",
+	});
+	const embeds = groupedFields.map((group, index) => ({
+		title: `${toDay}のダイジェスト(${index + 1}/${groupedFields.length})`,
 		fields: group,
 	}));
 
