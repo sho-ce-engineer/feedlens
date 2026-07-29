@@ -1,10 +1,8 @@
 import * as z from "zod";
-import { ai } from "../config";
+import { ai, geminiModel } from "../config";
 import type { Article } from "../domain/article";
 import type { Classifier } from "../domain/classifier";
 import type { Result } from "../domain/result";
-
-const model = "gemini-3.5-flash-lite";
 
 const isHotSchema = z.object({
 	isHot: z.boolean(),
@@ -27,7 +25,7 @@ const callGemini = async (
 	tools?: Parameters<typeof ai.interactions.create>[0]["tools"],
 ) => {
 	return await ai.interactions.create({
-		model: model,
+		model: geminiModel,
 		input: prompt,
 		response_format: {
 			type: "text",

@@ -17,3 +17,8 @@ if (!process.env.DISCORD_DIGEST_WEBHOOK_URL) {
 	throw new Error("DISCORD_DIGEST_WEBHOOK_URL is not set");
 }
 export const digestWebhookUrl = process.env.DISCORD_DIGEST_WEBHOOK_URL;
+
+if (!process.env.GEMINI_MODEL) {
+	throw new Error("GEMINI_MODEL is not set");
+}
+export const geminiModel = process.env.GEMINI_MODEL;
