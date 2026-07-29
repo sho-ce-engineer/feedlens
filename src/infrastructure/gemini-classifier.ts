@@ -1,11 +1,10 @@
-import { ApiError } from "@google/genai";
 import * as z from "zod";
 import { ai } from "../config";
 import type { Article } from "../domain/article";
 import type { Classifier } from "../domain/classifier";
 import type { Result } from "../domain/result";
 
-const model = "gemini-3.5-flash";
+const model = "gemini-3.5-flash-lite";
 
 const isHotSchema = z.object({
 	isHot: z.boolean(),
@@ -14,6 +13,11 @@ const isHotSchema = z.object({
 const summarizeSchema = z.object({
 	summarize: z.string(),
 });
+
+const isRateLimitError = (error: unknown): boolean => {
+	const text = error instanceof Error ? error.message : String(error);
+	return /429|RESOURCE_EXHAUSTED|rate limit|quota/i.test(text);
+};
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -43,7 +47,7 @@ const callGeminiWithRetry = async (
 	try {
 		res = await callGemini(prompt, schema, tools);
 	} catch (error) {
-		if (error instanceof ApiError && error.status === 429) {
+		if (isRateLimitError(error)) {
 			await sleep(60000);
 			try {
 				res = await callGemini(prompt, schema, tools);
