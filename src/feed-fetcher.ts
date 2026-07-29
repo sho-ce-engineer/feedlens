@@ -31,12 +31,12 @@ export const fetchFeeds = async (): Promise<{
 			const feed = result.value;
 			for (const rawItem of feed.items) {
 				const parsed = ArticleSchema.safeParse({
-					title: rawItem.title,
+					title: rawItem.title?.trim(),
 					link: rawItem.link,
 					guid: rawItem.guid ?? rawItem.link,
 					pubDate: rawItem.pubDate,
 					description: rawItem.contentSnippet ?? rawItem.content ?? "",
-					sourceName: feed.title,
+					sourceName: feed.title?.trim() ?? "",
 				});
 				if (parsed.success) {
 					articles.push(parsed.data);
