@@ -2,6 +2,19 @@ import { digestWebhookUrl, hotNewsWebhookUrl } from "./config";
 import type { Article, ClassifiedArticle } from "./domain/article";
 import type { Result } from "./domain/result";
 
+type Field = {
+	name: string;
+	value: string;
+};
+type Embed = { title: string; fields: Field[] };
+
+const toDay = new Date().toLocaleDateString("ja-JP", {
+	timeZone: "Asia/Tokyo",
+});
+
+//Discord：メッセージ文字数上限6000文字のため、titleとマージンを設けた値
+const textLimit = 6000 * 0.9;
+
 export const notifyHot = async (
 	classified: ClassifiedArticle,
 ): Promise<Result<void>> => {
@@ -37,55 +50,90 @@ export const notifyHot = async (
 	return { success: true, data: undefined };
 };
 
+export const buildDigestMessages = (articles: Article[]): Embed[][] => {
+	const fields: Field[] = articles.map((article) => ({
+		name: article.title.slice(0, 256), //256文字制限に対応
+		value: article.link.slice(0, 1024), //1024文字制限に対応
+	}));
+
+	const groupMessage: Embed[][] = [];
+	let currentMessage: Embed[] = [];
+	let messageTextLength = 0;
+	let currentEmbed: Field[] = [];
+	let currentEmbedTextLength = 0;
+
+	for (const field of fields) {
+		const fieldTextLength = field.name.length + field.value.length;
+
+		if (
+			currentEmbed.length >= 25 ||
+			currentEmbedTextLength + fieldTextLength >= textLimit
+		) {
+			const completedEmbed: Embed = {
+				title: "",
+				fields: currentEmbed,
+			};
+
+			if (
+				currentMessage.length >= 10 ||
+				messageTextLength + currentEmbedTextLength >= textLimit
+			) {
+				groupMessage.push(currentMessage);
+				currentMessage = [];
+				messageTextLength = 0;
+			}
+
+			currentMessage.push(completedEmbed);
+			messageTextLength = messageTextLength + currentEmbedTextLength;
+			currentEmbed = [];
+			currentEmbedTextLength = 0;
+		}
+		currentEmbed.push(field);
+		currentEmbedTextLength = currentEmbedTextLength + fieldTextLength;
+	}
+
+	if (currentEmbed.length > 0) {
+		const completedEmbed: Embed = {
+			title: "",
+			fields: currentEmbed,
+		};
+		currentMessage.push(completedEmbed);
+	}
+	if (currentMessage.length > 0) {
+		groupMessage.push(currentMessage);
+	}
+
+	const totalEmbedCount = groupMessage.reduce(
+		(sum, message) => sum + message.length,
+		0,
+	);
+	let embedIndex = 0;
+	for (const message of groupMessage) {
+		for (const embed of message) {
+			embedIndex++;
+			embed.title = `${toDay}のダイジェスト(${embedIndex}/${totalEmbedCount})`;
+		}
+	}
+
+	return groupMessage;
+};
+
 export const notifyDigest = async (
 	articles: Article[],
 ): Promise<Result<void>> => {
 	let res: Awaited<ReturnType<typeof fetch>>;
 
-	const fields = articles.map((article) => ({
-		name: article.title.slice(0, 256), //256文字制限に対応
-		value: article.link.slice(0, 1024), //1024文字制限に対応
-	}));
-
-	const groupedFields: (typeof fields)[] = [];
-	let currentGroup: typeof fields = [];
-	let currentLength = 0;
-
-	for (const field of fields) {
-		const fieldLength = field.name.length + field.value.length;
-
-		if (currentGroup.length >= 25 || currentLength + fieldLength >= 5500) {
-			groupedFields.push(currentGroup);
-			currentGroup = [];
-			currentLength = 0;
-		}
-		currentGroup.push(field);
-		currentLength = currentLength + fieldLength;
-	}
-	groupedFields.push(currentGroup);
-
-	const toDay = new Date().toLocaleDateString("ja-JP", {
-		timeZone: "Asia/Tokyo",
-	});
-	const embeds = groupedFields.map((group, index) => ({
-		title: `${toDay}のダイジェスト(${index + 1}/${groupedFields.length})`,
-		fields: group,
-	}));
-
-	const groupedEmbeds = [];
-	for (let i = 0; embeds.length > i; i = i + 10) {
-		groupedEmbeds.push(embeds.slice(i, i + 10));
-	}
+	const groupMessage = buildDigestMessages(articles);
 
 	const digestErrors: string[] = [];
 
-	for (const group of groupedEmbeds) {
+	for (const message of groupMessage) {
 		try {
 			res = await fetch(digestWebhookUrl, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
-					embeds: group,
+					embeds: message,
 				}),
 			});
 		} catch (error) {
