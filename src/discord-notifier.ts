@@ -64,7 +64,6 @@ export const buildDigestMessages = (articles: Article[]): Embed[][] => {
 
 	for (const field of fields) {
 		const fieldTextLength = field.name.length + field.value.length;
-
 		if (
 			currentEmbed.length >= 25 ||
 			currentEmbedTextLength + fieldTextLength >= textLimit
@@ -97,6 +96,14 @@ export const buildDigestMessages = (articles: Article[]): Embed[][] => {
 			title: "",
 			fields: currentEmbed,
 		};
+		if (
+			currentMessage.length >= 10 ||
+			messageTextLength + currentEmbedTextLength >= textLimit
+		) {
+			groupMessage.push(currentMessage);
+			currentMessage = [];
+			messageTextLength = 0;
+		}
 		currentMessage.push(completedEmbed);
 	}
 	if (currentMessage.length > 0) {
