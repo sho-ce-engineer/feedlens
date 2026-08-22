@@ -79,6 +79,8 @@ export class GeminiClassifier implements Classifier {
         - AI時代のキャリア戦略
         - IT業界全般のキャッチアップに役立つ情報
         - IT技術全般のキャッチアップに役立つ情報
+		- 食指をそそるような魅力的なガジェット情報
+		- その他エンジニアが好きそうな話題
 
         該当するならisHotをtrue、雑談・炎上ネタ・個別サービスの障害報告など上記に当てはまらない場合はfalseとしてください。
 
@@ -126,6 +128,9 @@ export class GeminiClassifier implements Classifier {
         判断できるようにすることです。
 
         単なる一言コメントではなく、記事が何を伝えているのか具体的に分かる要約にしてください。
+
+		また、おすすめ度をレーティングしてください。
+		（例：これが基準→★★★☆☆、絶対読むべき→★★★★★、もしかしたら何かで役立つかも等→★☆☆☆☆）
 
         URL: ${article.link}
         タイトル: ${article.title}
