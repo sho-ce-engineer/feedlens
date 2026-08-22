@@ -8,5 +8,16 @@
 	"https://rss.itmedia.co.jp/rss/2.0/tf_medical.xml",
 	"https://logmi.jp/RSS/feed.xml",
 	"https://zenn.dev/feed",
-	"https://qiita.com/popular-items/feed.atom"
+	"https://qiita.com/popular-items/feed.atom",
+	"https://www.gizmodo.jp/feed/index.xml",
+	"https://note.com/medley/rss",
+	"https://zenn.dev/p/medley/feed",
+	"https://note.com/ubie_discovery/rss",
+	"https://zenn.dev/p/ubie_dev/feed",
+	"https://news.mynavi.jp/rss/techplus/technology",
+	"https://menthas.com/top/rss",
+	"https://openai.com/news/rss.xml",
+	"https://feeds.feedburner.com/GDBcode",
+	"https://www.amazon.science/index.rss",
+	"https://xtech.nikkei.com/rss/index.rdf"
 ]
