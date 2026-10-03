@@ -79,7 +79,7 @@ export class GeminiClassifier implements Classifier {
         - AI時代のキャリア戦略
         - IT業界全般のキャッチアップに役立つ情報
         - IT技術全般のキャッチアップに役立つ情報
-		- 食指をそそるような魅力的なガジェット情報
+		- 食指をそそるような魅力的なガジェット情報(最低限のレベルは電気が通るかどうか、デスクなどテレワークで活用できるもの)
 		- その他エンジニアが好きそうな話題
 
         該当するならisHotをtrue、雑談・炎上ネタ・個別サービスの障害報告など上記に当てはまらない場合はfalseとしてください。
@@ -134,7 +134,10 @@ export class GeminiClassifier implements Classifier {
 
         URL: ${article.link}
         タイトル: ${article.title}
-        本文抜粋: ${article.description}`;
+        本文抜粋: ${article.description}
+		
+		もし”会員しか記事情報が取得できない記事”の場合は、どのRSSから取得したものか末尾に掲載してください。
+		`;
 
 		const callResult = await callGeminiWithRetry(
 			summarizePrompt,
