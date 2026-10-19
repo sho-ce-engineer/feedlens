@@ -22,9 +22,9 @@ export type ArticleError = {
 };
 
 // 記事評価後
-export const ClassifieldArticleSchema = z.object({
+export const ClassifiedArticleSchema = z.object({
 	article: ArticleSchema,
 	summary: z.string(),
 });
 
-export type ClassifiedArticle = z.infer<typeof ClassifieldArticleSchema>;
+export type ClassifiedArticle = z.infer<typeof ClassifiedArticleSchema>;
