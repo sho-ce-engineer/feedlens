@@ -1,8 +1,13 @@
 import * as z from "zod";
+import criteriaJson from "../../criteria.json";
 import { ai, geminiModel } from "../config";
 import type { Article } from "../domain/article";
 import type { Classifier } from "../domain/classifier";
+import { CriteriaSchema } from "../domain/criteria";
 import type { Result } from "../domain/result";
+import { buildJudgePrompt } from "./prompts";
+
+const criteria = CriteriaSchema.parse(criteriaJson);
 
 const isHotSchema = z.object({
 	isHot: z.boolean(),
@@ -70,22 +75,7 @@ const callGeminiWithRetry = async (
 
 export class GeminiClassifier implements Classifier {
 	async judgeIsHot(article: Article): Promise<Result<boolean>> {
-		const isHotPrompt = `
-        あなたは、ジュニアエンジニアのキャリア形成に役立つ技術記事を選定するアシスタントです。
-        以下の記事が、次のいずれかのテーマに該当するか判定してください。
-
-        - ジュニアエンジニアが知っておくべき技術・業界の基礎知識
-        - ジュニアエンジニアの成長に役立つ情報(勉強法、練習方法など）
-        - AI時代のキャリア戦略
-        - IT業界全般のキャッチアップに役立つ情報
-        - IT技術全般のキャッチアップに役立つ情報
-		- 食指をそそるような魅力的なガジェット情報(最低限のレベルは電気が通るかどうか、デスクなどテレワークで活用できるもの)
-		- その他エンジニアが好きそうな話題
-
-        該当するならisHotをtrue、雑談・炎上ネタ・個別サービスの障害報告など上記に当てはまらない場合はfalseとしてください。
-
-        タイトル: ${article.title}
-        本文抜粋: ${article.description}`;
+		const isHotPrompt = buildJudgePrompt(article, criteria);
 
 		const callResult = await callGeminiWithRetry(isHotPrompt, isHotSchema);
 		if (!callResult.success) {

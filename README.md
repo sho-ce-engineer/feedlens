@@ -28,6 +28,7 @@ src/
   feed-fetcher.ts          # RSS取得(rss-parser)
   discord-notifier.ts      # Discord Webhook通知
 index.ts                   # 全体の組み立て役
+criteria.json              # Hot判定のテーマ・除外条件
 ```
 
 interfaceによる抽象化は「**実装を差し替える可能性が現実的にある箇所**」(`Classifier`)にのみ適用し、それ以外(RSS取得・Discord通知)はシンプルな関数のままにしています。
@@ -93,7 +94,11 @@ GEMINI_MODEL = gemini-3.5-flash-lite
 ]
 ```
 
-### 4. 実行
+### 4. 判定基準の設定
+
+`criteria.json`で、記事を「Hot」と判定するテーマ(`themes`)と、Hotにしない記事の例(`rejects`)を編集できます。コードを変更せずに判定基準を調整できます。
+
+### 5. 実行
 
 ```bash
 bun run index.ts
