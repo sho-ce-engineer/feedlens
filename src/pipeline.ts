@@ -14,6 +14,7 @@ export const filterRecent = (
 };
 
 export type PipelineResult = {
+	hotCount: number;
 	digestArticles: Article[];
 	errors: string[];
 };
@@ -27,6 +28,7 @@ export const processArticles = async (
 ): Promise<PipelineResult> => {
 	const errors: string[] = [];
 	const digestArticles: Article[] = [];
+	let hotCount = 0;
 
 	for (const article of articles) {
 		const judgeResult = await classifier.judgeIsHot(article);
@@ -51,10 +53,12 @@ export const processArticles = async (
 		}
 
 		const notifyResult = await notify({ article, summary });
-		if (!notifyResult.success) {
+		if (notifyResult.success) {
+			hotCount++;
+		} else {
 			errors.push(notifyResult.error);
 		}
 	}
 
-	return { digestArticles, errors };
+	return { hotCount, digestArticles, errors };
 };

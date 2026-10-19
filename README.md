@@ -78,8 +78,8 @@ bun install
 GEMINI_API_KEY = your_gemini_api_key
 DISCORD_HOT_WEBHOOK_URL = your_hot_news_channel_webhook_url
 DISCORD_DIGEST_WEBHOOK_URL = your_digest_channel_webhook_url
-GEMINI_MODEL = gemini-3.5-flash-lite
 DISCORD_LOG_WEBHOOK_URL = your_log_channel_webhook_url # 任意。実行結果サマリの通知先(未設定ならダイジェストと同じチャンネル)
+GEMINI_MODEL = gemini-3.5-flash-lite
 ```
 
 - Gemini APIキーは [Google AI Studio](https://ai.google.dev/) から取得できます
