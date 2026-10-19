@@ -9,7 +9,7 @@ RSSフィードをAI(Gemini)でフィルタリング・要約し、Discordに配
 - 判定を通過した記事(Hot) → 要約付きで個別にDiscordへ通知
 - それ以外の記事 → タイトルとリンクだけをまとめてダイジェストとして通知
 
-GitHub Actionsで毎日1回(07:00 JST)自動実行されます。  
+GitHub Actionsで毎日1回(05:00 JST)自動実行されます。  
 *※RSSメディア、フィルタリング要件、時間や頻度などは、パラメータを変更することで任意の動作に変更できます。*
 
 ## アーキテクチャ
@@ -26,7 +26,9 @@ src/
     gemini-classifier.ts   # Classifier の実装。Gemini API呼び出し・リトライ・構造化出力の検証
   config.ts                # 環境変数の検証・export
   feed-fetcher.ts          # RSS取得(rss-parser)
-  discord-notifier.ts      # Discord Webhook通知
+  discord-notifier.ts      # Discord Webhook通知(429リトライ・実行結果サマリ含む)
+  pipeline.ts              # 判定→要約→通知の流れと失敗時のフォールバック
+criteria.json              # Hot判定のテーマ・除外条件
 index.ts                   # 全体の組み立て役
 ```
 
@@ -39,10 +41,12 @@ interfaceによる抽象化は「**実装を差し替える可能性が現実的
 ② 直近24時間以内に公開された記事のみに絞り込み
 ③ 記事ごとに GeminiClassifier.judgeIsHot() で判定
      false → ダイジェスト用配列に追加
+     判定失敗 → ダイジェスト用配列に追加(通知から漏らさない)
      true  → GeminiClassifier.summarize() で要約(URL context toolで本文を取得)
-           → 要約付きで #hot-news に個別通知
+           → 要約付きで #hot-news に個別通知(要約失敗時は要約なしで通知)
 ④ ③の後、ダイジェスト用配列をまとめて #daily-digest に1回通知
 ⑤ 発生したエラーは処理を止めずに記録し、最後にまとめてログ出力
+⑥ 実行結果サマリ(件数・エラー)を Discord に1回通知
 ```
 
 一部の記事やAPI呼び出しが失敗しても、処理全体は止まらずに続行します(部分的失敗の許容)。
@@ -74,7 +78,8 @@ bun install
 ```
 GEMINI_API_KEY = your_gemini_api_key
 DISCORD_HOT_WEBHOOK_URL = your_hot_news_channel_webhook_url
-DISCORD_DIGEST_WEBHOOK_UR L= your_digest_channel_webhook_url
+DISCORD_DIGEST_WEBHOOK_URL = your_digest_channel_webhook_url
+DISCORD_LOG_WEBHOOK_URL = your_log_channel_webhook_url # 任意。実行結果サマリの通知先(未設定ならダイジェストと同じチャンネル)
 GEMINI_MODEL = gemini-3.5-flash-lite
 ```
 
@@ -93,7 +98,11 @@ GEMINI_MODEL = gemini-3.5-flash-lite
 ]
 ```
 
-### 4. 実行
+### 4. 判定基準の設定
+
+`criteria.json`で、記事を「Hot」と判定するテーマ(`themes`)と、Hotにしない記事の例(`rejects`)を編集できます。コードを変更せずに判定基準を調整できます。
+
+### 5. 実行
 
 ```bash
 bun run index.ts
@@ -101,7 +110,7 @@ bun run index.ts
 
 ## GitHub Actionsでの自動実行
 
-`.github/workflows/`配下のワークフローにより、毎日07:00 JST(cron: `0 22 * * *`, UTC基準)に自動実行されます。
+`.github/workflows/`配下のワークフローにより、毎日05:00 JST(cron: `0 20 * * *`, UTC基準)に自動実行されます。
 
 リポジトリの Settings → Secrets and variables → Actions で、以下を登録してください。
 
@@ -109,15 +118,16 @@ bun run index.ts
 - `GEMINI_API_KEY`
 - `DISCORD_HOT_WEBHOOK_URL`
 - `DISCORD_DIGEST_WEBHOOK_URL`
+- `DISCORD_LOG_WEBHOOK_URL`(任意。実行結果サマリの通知先)
 
 **Variables**
 - `GEMINI_MODEL`
 
 ## 既知の制約
 
-- **Gemini無料枠のレート制限**: モデルごとにRPM/RPDの上限があります。処理する記事数が多い場合、レート制限に達すると自動で待機（60秒）・再試行しますが、それでも失敗した記事はスキップされます。
+- **Gemini無料枠のレート制限**: モデルごとにRPM/RPDの上限があります。処理する記事数が多い場合、レート制限に達すると自動で待機（60秒）・再試行しますが、それでも判定に失敗した記事はダイジェストに回されます。Discord Webhookのレート制限(429)は`Retry-After`に従って自動で再試行します。
 - **既読管理を行わない設計**: 記事の重複通知防止は、既読ID管理ではなく「直近24時間以内に公開された記事のみを対象にする」という日付ベースのフィルタで実現しています。Actionsの実行が失敗・スキップされた場合、その間に公開された記事を見逃す可能性があります。
-- **要約生成が稀に失敗することがある**: `summarize`はURL context toolで記事本文を取得しますが、ページによってはツール呼び出しが失敗し、その記事の要約・通知がスキップされることがあります。
+- **要約生成が稀に失敗することがある**: `summarize`はURL context toolで記事本文を取得しますが、ページによってはツール呼び出しが失敗し、要約なしの状態で通知されます(要約部分に失敗した旨が表示されます)。
 - **Discordの表示設定**: クライアント側で「埋め込みとリンクのプレビューを表示」がオフになっていると、正常に送信されたメッセージでも中身(embed)が表示されません。あらかじめ設定変更の上、お楽しみください。
 
 ## ライセンス

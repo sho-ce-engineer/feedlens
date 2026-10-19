@@ -1,5 +1,10 @@
-import { describe, expect, test } from "bun:test";
-import { buildDigestMessages } from "./discord-notifier";
+import { afterEach, describe, expect, test } from "bun:test";
+import {
+	buildDigestMessages,
+	buildRunSummary,
+	postWebhook,
+	type RunSummary,
+} from "./discord-notifier";
 import type { Article } from "./domain/article";
 
 const makeArticle = (
@@ -141,5 +146,116 @@ describe("buildDigestMessages", () => {
 		for (const embed of allEmbeds) {
 			expect(embed.fields.length).toBe(25);
 		}
+	});
+});
+
+describe("postWebhook", () => {
+	const originalFetch = globalThis.fetch;
+	afterEach(() => {
+		globalThis.fetch = originalFetch;
+	});
+
+	const mockFetch = (responses: Response[]) => {
+		let calls = 0;
+		globalThis.fetch = (async () => {
+			const res = responses[calls];
+			calls++;
+			if (!res) {
+				throw new Error("想定外の呼び出し");
+			}
+			return res;
+		}) as unknown as typeof fetch;
+		return () => calls;
+	};
+
+	const rateLimited = () =>
+		new Response("rate limited", {
+			status: 429,
+			headers: { "Retry-After": "0" },
+		});
+
+	test("成功時はsuccessを返す", async () => {
+		const calls = mockFetch([new Response(null, { status: 204 })]);
+		const result = await postWebhook("https://example.com", {}, "test");
+		expect(result.success).toBe(true);
+		expect(calls()).toBe(1);
+	});
+
+	test("429の場合は待機してリトライし、成功すればsuccessを返す", async () => {
+		const calls = mockFetch([
+			rateLimited(),
+			rateLimited(),
+			new Response(null, { status: 204 }),
+		]);
+		const result = await postWebhook("https://example.com", {}, "test");
+		expect(result.success).toBe(true);
+		expect(calls()).toBe(3);
+	});
+
+	test("429が続く場合は上限回数でエラーを返す", async () => {
+		const calls = mockFetch([
+			rateLimited(),
+			rateLimited(),
+			rateLimited(),
+			rateLimited(),
+		]);
+		const result = await postWebhook("https://example.com", {}, "test");
+		expect(result.success).toBe(false);
+		expect(calls()).toBe(4);
+	});
+
+	test("429以外のエラーはリトライせずエラーを返す", async () => {
+		const calls = mockFetch([new Response("bad", { status: 400 })]);
+		const result = await postWebhook("https://example.com", {}, "test");
+		expect(result.success).toBe(false);
+		expect(calls()).toBe(1);
+	});
+
+	test("ネットワークエラーはエラーを返す", async () => {
+		globalThis.fetch = (async () => {
+			throw new Error("network down");
+		}) as unknown as typeof fetch;
+		const result = await postWebhook("https://example.com", {}, "test");
+		expect(result).toEqual({
+			success: false,
+			error: "test:Network Error:network down",
+		});
+	});
+});
+
+describe("buildRunSummary", () => {
+	const base: RunSummary = {
+		feedCount: 17,
+		fetchErrorCount: 1,
+		parseErrorCount: 2,
+		articleCount: 120,
+		recentCount: 35,
+		hotCount: 4,
+		digestCount: 28,
+		errors: [],
+	};
+
+	test("件数がサマリに含まれ、エラーが無ければエラー欄は出ない", () => {
+		const text = buildRunSummary(base);
+		expect(text).toContain("フィード: 17件(取得失敗 1件)");
+		expect(text).toContain("直近24時間 35件");
+		expect(text).toContain("Hot 4件 / ダイジェスト 28件");
+		expect(text).not.toContain("エラー");
+	});
+
+	test("エラーは件数と内容を表示し、10件を超えた分は省略する", () => {
+		const errors = Array.from({ length: 12 }, (_, i) => `error-${i}`);
+		const text = buildRunSummary({ ...base, errors });
+		expect(text).toContain("⚠️ エラー 12件");
+		expect(text).toContain("- error-9");
+		expect(text).not.toContain("- error-10");
+		expect(text).toContain("…ほか 2件");
+	});
+
+	test("長大なエラーでも2000文字以内に収まる", () => {
+		const errors = Array.from({ length: 50 }, () => "x".repeat(5000));
+		expect(buildRunSummary({ ...base, errors }).length).toBeLessThanOrEqual(
+			2000,
+		);
 	});
 });
