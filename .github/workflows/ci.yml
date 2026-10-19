@@ -1,0 +1,28 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - run: bun install --frozen-lockfile
+
+      - run: bun run lint
+
+      - run: bun run typecheck
+
+      - run: bun run test
+        env:
+          # config.tsは環境変数の存在を起動時に検証するためダミー値を渡す(外部通信はしない)
+          GEMINI_API_KEY: dummy
+          DISCORD_HOT_WEBHOOK_URL: https://example.com/hot
+          DISCORD_DIGEST_WEBHOOK_URL: https://example.com/digest
+          GEMINI_MODEL: dummy
