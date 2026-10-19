@@ -9,7 +9,7 @@ RSSフィードをAI(Gemini)でフィルタリング・要約し、Discordに配
 - 判定を通過した記事(Hot) → 要約付きで個別にDiscordへ通知
 - それ以外の記事 → タイトルとリンクだけをまとめてダイジェストとして通知
 
-GitHub Actionsで毎日1回(07:00 JST)自動実行されます。  
+GitHub Actionsで毎日1回(05:00 JST)自動実行されます。  
 *※RSSメディア、フィルタリング要件、時間や頻度などは、パラメータを変更することで任意の動作に変更できます。*
 
 ## アーキテクチャ
@@ -75,7 +75,7 @@ bun install
 ```
 GEMINI_API_KEY = your_gemini_api_key
 DISCORD_HOT_WEBHOOK_URL = your_hot_news_channel_webhook_url
-DISCORD_DIGEST_WEBHOOK_UR L= your_digest_channel_webhook_url
+DISCORD_DIGEST_WEBHOOK_URL = your_digest_channel_webhook_url
 GEMINI_MODEL = gemini-3.5-flash-lite
 ```
 
@@ -106,7 +106,7 @@ bun run index.ts
 
 ## GitHub Actionsでの自動実行
 
-`.github/workflows/`配下のワークフローにより、毎日07:00 JST(cron: `0 22 * * *`, UTC基準)に自動実行されます。
+`.github/workflows/`配下のワークフローにより、毎日05:00 JST(cron: `0 20 * * *`, UTC基準)に自動実行されます。
 
 リポジトリの Settings → Secrets and variables → Actions で、以下を登録してください。
 
