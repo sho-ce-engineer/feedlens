@@ -21,14 +21,16 @@ src/
   domain/
     article.ts             # Article, ClassifiedArticle, ArticleError などのデータ型(zodスキーマ)
     classifier.ts          # Classifier interface(契約) — AI実装を差し替え可能にするための抽象化
+    criteria.ts            # Hot判定の基準(criteria.json)のスキーマ
     result.ts              # Result<T> 汎用の成功/失敗型
   infrastructure/
     gemini-classifier.ts   # Classifier の実装。Gemini API呼び出し・リトライ・構造化出力の検証
+    prompts.ts             # Geminiに渡すプロンプトの組み立て
   config.ts                # 環境変数の検証・export
   feed-fetcher.ts          # RSS取得(rss-parser)
   discord-notifier.ts      # Discord Webhook通知
-index.ts                   # 全体の組み立て役
 criteria.json              # Hot判定のテーマ・除外条件
+index.ts                   # 全体の組み立て役
 ```
 
 interfaceによる抽象化は「**実装を差し替える可能性が現実的にある箇所**」(`Classifier`)にのみ適用し、それ以外(RSS取得・Discord通知)はシンプルな関数のままにしています。
