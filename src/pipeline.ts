@@ -2,7 +2,7 @@ import type { Article, ClassifiedArticle } from "./domain/article";
 import type { Classifier } from "./domain/classifier";
 import type { Result } from "./domain/result";
 
-export const SUMMARY_FALLBACK =
+export const summaryFallback =
 	"⚠️ 要約の生成に失敗したため、要約なしで通知しています。リンク先をご確認ください。";
 
 export const filterRecent = (
@@ -14,7 +14,6 @@ export const filterRecent = (
 };
 
 export type PipelineResult = {
-	hotCount: number;
 	digestArticles: Article[];
 	errors: string[];
 };
@@ -28,7 +27,6 @@ export const processArticles = async (
 ): Promise<PipelineResult> => {
 	const errors: string[] = [];
 	const digestArticles: Article[] = [];
-	let hotCount = 0;
 
 	for (const article of articles) {
 		const judgeResult = await classifier.judgeIsHot(article);
@@ -45,7 +43,7 @@ export const processArticles = async (
 
 		const summarizeResult = await classifier.summarize(article);
 
-		let summary = SUMMARY_FALLBACK;
+		let summary = summaryFallback;
 		if (summarizeResult.success) {
 			summary = summarizeResult.data;
 		} else {
@@ -53,12 +51,10 @@ export const processArticles = async (
 		}
 
 		const notifyResult = await notify({ article, summary });
-		if (notifyResult.success) {
-			hotCount++;
-		} else {
+		if (!notifyResult.success) {
 			errors.push(notifyResult.error);
 		}
 	}
 
-	return { hotCount, digestArticles, errors };
+	return { digestArticles, errors };
 };
