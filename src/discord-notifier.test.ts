@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test";
-import { buildDigestMessages } from "./discord-notifier";
+import { afterEach, describe, expect, test } from "bun:test";
+import { buildDigestMessages, postWebhook } from "./discord-notifier";
 import type { Article } from "./domain/article";
 
 const makeArticle = (
@@ -141,5 +141,79 @@ describe("buildDigestMessages", () => {
 		for (const embed of allEmbeds) {
 			expect(embed.fields.length).toBe(25);
 		}
+	});
+});
+
+describe("postWebhook", () => {
+	const originalFetch = globalThis.fetch;
+	afterEach(() => {
+		globalThis.fetch = originalFetch;
+	});
+
+	const mockFetch = (responses: Response[]) => {
+		let calls = 0;
+		globalThis.fetch = (async () => {
+			const res = responses[calls];
+			calls++;
+			if (!res) {
+				throw new Error("想定外の呼び出し");
+			}
+			return res;
+		}) as unknown as typeof fetch;
+		return () => calls;
+	};
+
+	const rateLimited = () =>
+		new Response("rate limited", {
+			status: 429,
+			headers: { "Retry-After": "0" },
+		});
+
+	test("成功時はsuccessを返す", async () => {
+		const calls = mockFetch([new Response(null, { status: 204 })]);
+		const result = await postWebhook("https://example.com", {}, "test");
+		expect(result.success).toBe(true);
+		expect(calls()).toBe(1);
+	});
+
+	test("429の場合は待機してリトライし、成功すればsuccessを返す", async () => {
+		const calls = mockFetch([
+			rateLimited(),
+			rateLimited(),
+			new Response(null, { status: 204 }),
+		]);
+		const result = await postWebhook("https://example.com", {}, "test");
+		expect(result.success).toBe(true);
+		expect(calls()).toBe(3);
+	});
+
+	test("429が続く場合は上限回数でエラーを返す", async () => {
+		const calls = mockFetch([
+			rateLimited(),
+			rateLimited(),
+			rateLimited(),
+			rateLimited(),
+		]);
+		const result = await postWebhook("https://example.com", {}, "test");
+		expect(result.success).toBe(false);
+		expect(calls()).toBe(4);
+	});
+
+	test("429以外のエラーはリトライせずエラーを返す", async () => {
+		const calls = mockFetch([new Response("bad", { status: 400 })]);
+		const result = await postWebhook("https://example.com", {}, "test");
+		expect(result.success).toBe(false);
+		expect(calls()).toBe(1);
+	});
+
+	test("ネットワークエラーはエラーを返す", async () => {
+		globalThis.fetch = (async () => {
+			throw new Error("network down");
+		}) as unknown as typeof fetch;
+		const result = await postWebhook("https://example.com", {}, "test");
+		expect(result).toEqual({
+			success: false,
+			error: "test:Network Error:network down",
+		});
 	});
 });
