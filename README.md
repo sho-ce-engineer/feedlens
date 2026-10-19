@@ -26,7 +26,7 @@ src/
     gemini-classifier.ts   # Classifier の実装。Gemini API呼び出し・リトライ・構造化出力の検証
   config.ts                # 環境変数の検証・export
   feed-fetcher.ts          # RSS取得(rss-parser)
-  discord-notifier.ts      # Discord Webhook通知(429リトライ含む)
+  discord-notifier.ts      # Discord Webhook通知(429リトライ・実行結果サマリ含む)
   pipeline.ts              # 判定→要約→通知の流れと失敗時のフォールバック
 index.ts                   # 全体の組み立て役
 ```
@@ -45,6 +45,7 @@ interfaceによる抽象化は「**実装を差し替える可能性が現実的
            → 要約付きで #hot-news に個別通知(要約失敗時は要約なしで通知)
 ④ ③の後、ダイジェスト用配列をまとめて #daily-digest に1回通知
 ⑤ 発生したエラーは処理を止めずに記録し、最後にまとめてログ出力
+⑥ 実行結果サマリ(件数・エラー)を Discord に1回通知
 ```
 
 一部の記事やAPI呼び出しが失敗しても、処理全体は止まらずに続行します(部分的失敗の許容)。
@@ -78,6 +79,7 @@ GEMINI_API_KEY = your_gemini_api_key
 DISCORD_HOT_WEBHOOK_URL = your_hot_news_channel_webhook_url
 DISCORD_DIGEST_WEBHOOK_UR L= your_digest_channel_webhook_url
 GEMINI_MODEL = gemini-3.5-flash-lite
+DISCORD_LOG_WEBHOOK_URL = your_log_channel_webhook_url # 任意。実行結果サマリの通知先(未設定ならダイジェストと同じチャンネル)
 ```
 
 - Gemini APIキーは [Google AI Studio](https://ai.google.dev/) から取得できます
@@ -111,6 +113,7 @@ bun run index.ts
 - `GEMINI_API_KEY`
 - `DISCORD_HOT_WEBHOOK_URL`
 - `DISCORD_DIGEST_WEBHOOK_URL`
+- `DISCORD_LOG_WEBHOOK_URL`(任意。実行結果サマリの通知先)
 
 **Variables**
 - `GEMINI_MODEL`

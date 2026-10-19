@@ -20,4 +20,5 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           DISCORD_HOT_WEBHOOK_URL: ${{ secrets.DISCORD_HOT_WEBHOOK_URL }}
           DISCORD_DIGEST_WEBHOOK_URL: ${{ secrets.DISCORD_DIGEST_WEBHOOK_URL }}
+          DISCORD_LOG_WEBHOOK_URL: ${{ secrets.DISCORD_LOG_WEBHOOK_URL }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}

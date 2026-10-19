@@ -1,4 +1,4 @@
-import { digestWebhookUrl, hotNewsWebhookUrl } from "./config";
+import { digestWebhookUrl, hotNewsWebhookUrl, logWebhookUrl } from "./config";
 import type { Article, ClassifiedArticle } from "./domain/article";
 import type { Result } from "./domain/result";
 
@@ -189,4 +189,57 @@ export const notifyDigest = async (
 		return { success: false, error: digestErrors.join(" / ") };
 	}
 	return { success: true, data: undefined };
+};
+
+export type RunSummary = {
+	feedCount: number;
+	fetchErrorCount: number;
+	parseErrorCount: number;
+	articleCount: number;
+	recentCount: number;
+	hotCount: number;
+	digestCount: number;
+	errors: string[];
+};
+
+//Discord：content上限2000文字に収める
+const summaryTextLimit = 1900;
+const summaryErrorLimit = 10;
+const summaryErrorLength = 150;
+
+export const buildRunSummary = (summary: RunSummary): string => {
+	const lines = [
+		`📊 feedlens 実行結果(${toDay})`,
+		`フィード: ${summary.feedCount}件(取得失敗 ${summary.fetchErrorCount}件)`,
+		`記事: ${summary.articleCount}件(解析失敗 ${summary.parseErrorCount}件) → 直近24時間 ${summary.recentCount}件`,
+		`通知: Hot ${summary.hotCount}件 / ダイジェスト ${summary.digestCount}件`,
+	];
+
+	if (summary.errors.length > 0) {
+		lines.push(`⚠️ エラー ${summary.errors.length}件`);
+		for (const error of summary.errors.slice(0, summaryErrorLimit)) {
+			const oneLine = error.replace(/\s+/g, " ");
+			lines.push(
+				`- ${oneLine.length > summaryErrorLength ? `${oneLine.slice(0, summaryErrorLength)}…` : oneLine}`,
+			);
+		}
+		if (summary.errors.length > summaryErrorLimit) {
+			lines.push(`…ほか ${summary.errors.length - summaryErrorLimit}件`);
+		}
+	}
+
+	const text = lines.join("\n");
+	return text.length > summaryTextLimit
+		? `${text.slice(0, summaryTextLimit)}…`
+		: text;
+};
+
+export const notifyRunSummary = async (
+	summary: RunSummary,
+): Promise<Result<void>> => {
+	return postWebhook(
+		logWebhookUrl,
+		{ content: buildRunSummary(summary) },
+		"notifyRunSummary",
+	);
 };

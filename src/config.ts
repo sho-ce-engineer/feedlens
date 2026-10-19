@@ -22,3 +22,7 @@ if (!process.env.GEMINI_MODEL) {
 	throw new Error("GEMINI_MODEL is not set");
 }
 export const geminiModel = process.env.GEMINI_MODEL;
+
+// 実行結果サマリの通知先。未設定ならダイジェストと同じチャンネルに送る
+export const logWebhookUrl =
+	process.env.DISCORD_LOG_WEBHOOK_URL || digestWebhookUrl;
