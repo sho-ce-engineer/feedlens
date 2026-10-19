@@ -21,11 +21,11 @@ const maxRetryWaitMs = 30_000;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // 429時の待機時間(ms)。Retry-Afterヘッダ(秒)を優先し、無ければbodyのretry_after(秒)を見る
-const getRetryWaitMs = async (res: Response): Promise<number> => {
+const getRetryWaitMs = (res: Response, bodyText: string): number => {
 	let seconds = Number.parseFloat(res.headers.get("Retry-After") ?? "");
 	if (Number.isNaN(seconds)) {
 		try {
-			const body = (await res.json()) as { retry_after?: unknown };
+			const body = JSON.parse(bodyText) as { retry_after?: unknown };
 			seconds = Number(body.retry_after);
 		} catch {
 			seconds = Number.NaN;
@@ -34,7 +34,7 @@ const getRetryWaitMs = async (res: Response): Promise<number> => {
 	if (Number.isNaN(seconds) || seconds < 0) {
 		seconds = 1;
 	}
-	return Math.min(seconds * 1000, maxRetryWaitMs);
+	return seconds * 1000;
 };
 
 // Webhookへ送信する。429(レート制限)の場合は待機して限定回数リトライする
@@ -62,12 +62,17 @@ export const postWebhook = async (
 			return { success: true, data: undefined };
 		}
 
+		const bodyText = await res.text();
+
 		if (res.status === 429 && attempt < maxRateLimitRetries) {
-			await sleep(await getRetryWaitMs(res));
-			continue;
+			const waitMs = getRetryWaitMs(res, bodyText);
+			// 指定された待機時間が上限を超える場合は、待ちきれないためリトライせずエラーにする
+			if (waitMs <= maxRetryWaitMs) {
+				await sleep(waitMs);
+				continue;
+			}
 		}
 
-		const bodyText = await res.text();
 		return {
 			success: false,
 			error: `${label}: Discord webhook returned an error (status ${res.status} ${res.statusText}): ${bodyText}`,

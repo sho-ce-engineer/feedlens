@@ -199,6 +199,28 @@ describe("postWebhook", () => {
 		expect(calls()).toBe(4);
 	});
 
+	test("Retry-Afterが無い場合はbodyのretry_afterに従ってリトライする", async () => {
+		const calls = mockFetch([
+			new Response(JSON.stringify({ retry_after: 0 }), { status: 429 }),
+			new Response(null, { status: 204 }),
+		]);
+		const result = await postWebhook("https://example.com", {}, "test");
+		expect(result.success).toBe(true);
+		expect(calls()).toBe(2);
+	});
+
+	test("待機時間が上限を超える429はリトライせずエラーを返す", async () => {
+		const calls = mockFetch([
+			new Response("rate limited", {
+				status: 429,
+				headers: { "Retry-After": "60" },
+			}),
+		]);
+		const result = await postWebhook("https://example.com", {}, "test");
+		expect(result.success).toBe(false);
+		expect(calls()).toBe(1);
+	});
+
 	test("429以外のエラーはリトライせずエラーを返す", async () => {
 		const calls = mockFetch([new Response("bad", { status: 400 })]);
 		const result = await postWebhook("https://example.com", {}, "test");
