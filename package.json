@@ -1,18 +1,23 @@
 {
-  "name": "feedlens",
-  "module": "index.ts",
-  "type": "module",
-  "private": true,
-  "devDependencies": {
-    "@biomejs/biome": "2.5.5",
-    "@types/bun": "latest"
-  },
-  "peerDependencies": {
-    "typescript": "^5"
-  },
-  "dependencies": {
-    "@google/genai": "^2.13.0",
-    "rss-parser": "^3.13.0",
-    "zod": "^4.4.3"
-  }
+	"name": "feedlens",
+	"module": "index.ts",
+	"type": "module",
+	"private": true,
+	"devDependencies": {
+		"@biomejs/biome": "2.5.5",
+		"@types/bun": "latest"
+	},
+	"peerDependencies": {
+		"typescript": "^5"
+	},
+	"dependencies": {
+		"@google/genai": "^2.13.0",
+		"rss-parser": "^3.13.0",
+		"zod": "^4.4.3"
+	},
+	"scripts": {
+		"lint": "biome check .",
+		"typecheck": "tsc --noEmit",
+		"test": "bun test"
+	}
 }
