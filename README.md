@@ -21,13 +21,16 @@ src/
   domain/
     article.ts             # Article, ClassifiedArticle, ArticleError などのデータ型(zodスキーマ)
     classifier.ts          # Classifier interface(契約) — AI実装を差し替え可能にするための抽象化
+    criteria.ts            # Hot判定の基準(criteria.json)のスキーマ
     result.ts              # Result<T> 汎用の成功/失敗型
   infrastructure/
     gemini-classifier.ts   # Classifier の実装。Gemini API呼び出し・リトライ・構造化出力の検証
+    prompts.ts             # Geminiに渡すプロンプトの組み立て
   config.ts                # 環境変数の検証・export
   feed-fetcher.ts          # RSS取得(rss-parser)
   discord-notifier.ts      # Discord Webhook通知(429リトライ・実行結果サマリ含む)
   pipeline.ts              # 判定→要約→通知の流れと失敗時のフォールバック
+criteria.json              # Hot判定のテーマ・除外条件
 index.ts                   # 全体の組み立て役
 ```
 
@@ -97,7 +100,11 @@ GEMINI_MODEL = gemini-3.5-flash-lite
 ]
 ```
 
-### 4. 実行
+### 4. 判定基準の設定
+
+`criteria.json`で、記事を「Hot」と判定するテーマ(`themes`)と、Hotにしない記事の例(`rejects`)を編集できます。コードを変更せずに判定基準を調整できます。
+
+### 5. 実行
 
 ```bash
 bun run index.ts
