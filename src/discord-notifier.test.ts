@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { buildDigestMessages, postWebhook } from "./discord-notifier";
+import {
+	buildDigestMessages,
+	buildRunSummary,
+	postWebhook,
+	type RunSummary,
+} from "./discord-notifier";
 import type { Article } from "./domain/article";
 
 const makeArticle = (
@@ -237,5 +242,42 @@ describe("postWebhook", () => {
 			success: false,
 			error: "test:Network Error:network down",
 		});
+	});
+});
+
+describe("buildRunSummary", () => {
+	const base: RunSummary = {
+		feedCount: 17,
+		fetchErrorCount: 1,
+		parseErrorCount: 2,
+		articleCount: 120,
+		recentCount: 35,
+		hotCount: 4,
+		digestCount: 28,
+		errors: [],
+	};
+
+	test("件数がサマリに含まれ、エラーが無ければエラー欄は出ない", () => {
+		const text = buildRunSummary(base);
+		expect(text).toContain("フィード: 17件(取得失敗 1件)");
+		expect(text).toContain("直近24時間 35件");
+		expect(text).toContain("Hot 4件 / ダイジェスト 28件");
+		expect(text).not.toContain("エラー");
+	});
+
+	test("エラーは件数と内容を表示し、10件を超えた分は省略する", () => {
+		const errors = Array.from({ length: 12 }, (_, i) => `error-${i}`);
+		const text = buildRunSummary({ ...base, errors });
+		expect(text).toContain("⚠️ エラー 12件");
+		expect(text).toContain("- error-9");
+		expect(text).not.toContain("- error-10");
+		expect(text).toContain("…ほか 2件");
+	});
+
+	test("長大なエラーでも2000文字以内に収まる", () => {
+		const errors = Array.from({ length: 50 }, () => "x".repeat(5000));
+		expect(buildRunSummary({ ...base, errors }).length).toBeLessThanOrEqual(
+			2000,
+		);
 	});
 });

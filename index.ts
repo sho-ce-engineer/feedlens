@@ -1,4 +1,9 @@
-import { notifyDigest, notifyHot } from "./src/discord-notifier";
+import urls from "./feeds.json";
+import {
+	notifyDigest,
+	notifyHot,
+	notifyRunSummary,
+} from "./src/discord-notifier";
 import { fetchFeeds } from "./src/feed-fetcher";
 import { GeminiClassifier } from "./src/infrastructure/gemini-classifier";
 import { filterRecent, processArticles } from "./src/pipeline";
@@ -9,7 +14,7 @@ const filteredArticle = filterRecent(articles);
 
 const classifier = new GeminiClassifier();
 
-const { digestArticles, errors } = await processArticles(
+const { hotCount, digestArticles, errors } = await processArticles(
 	filteredArticle,
 	classifier,
 	notifyHot,
@@ -22,9 +27,29 @@ if (digestArticles.length > 0) {
 	}
 }
 
+const fetchErrorMessages = fetchError.map(
+	(e) => `フィード取得失敗 ${e.url}: ${String(e.reason)}`,
+);
+
+const allErrors = [...fetchErrorMessages, ...errors];
+
 if (articlesError.length > 0 || fetchError.length > 0 || errors.length > 0) {
 	console.error("以下のエラーが発生しました:");
 	console.error("articlesError:", articlesError);
 	console.error("fetchError:", fetchError);
 	console.error("resultError:", errors);
+}
+
+const summaryResult = await notifyRunSummary({
+	feedCount: urls.length,
+	fetchErrorCount: fetchError.length,
+	parseErrorCount: articlesError.length,
+	articleCount: articles.length,
+	recentCount: filteredArticle.length,
+	hotCount,
+	digestCount: digestArticles.length,
+	errors: allErrors,
+});
+if (summaryResult.success === false) {
+	console.error(summaryResult.error);
 }

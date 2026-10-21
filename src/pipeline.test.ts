@@ -52,6 +52,7 @@ describe("processArticles", () => {
 			},
 		);
 		expect(result.digestArticles).toEqual([article]);
+		expect(result.hotCount).toBe(0);
 		expect(notified).toEqual([]);
 		expect(result.errors).toEqual([]);
 	});
@@ -68,6 +69,7 @@ describe("processArticles", () => {
 			},
 		);
 		expect(notified).toEqual([{ article, summary: "要約" }]);
+		expect(result.hotCount).toBe(1);
 		expect(result.digestArticles).toEqual([]);
 	});
 
@@ -80,6 +82,7 @@ describe("processArticles", () => {
 		);
 		expect(result.digestArticles).toEqual([article]);
 		expect(result.errors).toEqual(["judge failed"]);
+		expect(result.hotCount).toBe(0);
 	});
 
 	test("要約に失敗した記事は要約なしのHotとして通知し、エラーを記録する", async () => {
@@ -95,15 +98,17 @@ describe("processArticles", () => {
 		);
 		expect(notified).toEqual([{ article, summary: summaryFallback }]);
 		expect(result.errors).toEqual(["summarize failed"]);
+		expect(result.hotCount).toBe(1);
 		expect(result.digestArticles).toEqual([]);
 	});
 
-	test("Hotの通知に失敗した場合はエラーを記録する", async () => {
+	test("Hotの通知に失敗した場合はhotCountに含めず、エラーを記録する", async () => {
 		const result = await processArticles(
 			[makeArticle(1)],
 			makeClassifier(ok(true), ok("要約")),
 			async () => ng("notify failed"),
 		);
+		expect(result.hotCount).toBe(0);
 		expect(result.errors).toEqual(["notify failed"]);
 	});
 });
