@@ -2,7 +2,7 @@ import * as z from "zod";
 import criteriaJson from "../../criteria.json";
 import { ai, geminiModel } from "../config";
 import type { Article } from "../domain/article";
-import type { Classifier } from "../domain/classifier";
+import type { Classifier, Summary } from "../domain/classifier";
 import { CriteriaSchema } from "../domain/criteria";
 import type { Result } from "../domain/result";
 import { buildJudgePrompt } from "./prompts";
@@ -15,12 +15,23 @@ const isHotSchema = z.object({
 
 const summarizeSchema = z.object({
 	summarize: z.string(),
+	isPaywalled: z.boolean(),
 });
 
 const isRateLimitError = (error: unknown): boolean => {
 	const text = error instanceof Error ? error.message : String(error);
 	return /429|RESOURCE_EXHAUSTED|rate limit|quota/i.test(text);
 };
+
+type InteractionSteps = Awaited<ReturnType<typeof callGemini>>["steps"];
+
+// url_contextの取得結果に、Gemini側で会員限定(paywall)と判定されたURLがあるか
+export const hasPaywalledUrl = (steps: InteractionSteps | undefined): boolean =>
+	(steps ?? []).some(
+		(step) =>
+			step.type === "url_context_result" &&
+			step.result.some((result) => result.status === "paywall"),
+	);
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -108,7 +119,7 @@ export class GeminiClassifier implements Classifier {
 		}
 	}
 
-	async summarize(article: Article): Promise<Result<string>> {
+	async summarize(article: Article): Promise<Result<Summary>> {
 		const summarizePrompt = `
         あなたは、ジュニアエンジニアの情報収集を助けるアシスタントです。
         以下のURLの記事本文を読み、内容を要約してください。
@@ -126,7 +137,9 @@ export class GeminiClassifier implements Classifier {
         タイトル: ${article.title}
         本文抜粋: ${article.description}
 		
-		もし”会員しか記事情報が取得できない記事”の場合は、どのRSSから取得したものか末尾に掲載してください。
+		記事本文の閲覧に会員登録・ログイン・有料購読が必要で本文を読めなかった場合
+		(取得できた本文が冒頭のリード文だけなど、極端に短い場合を含む)は、isPaywalledをtrueにしてください。
+		それ以外はfalseにしてください。
 		`;
 
 		const callResult = await callGeminiWithRetry(
@@ -158,7 +171,13 @@ export class GeminiClassifier implements Classifier {
 		}
 
 		if (output.success === true) {
-			return { success: true, data: output.data.summarize };
+			return {
+				success: true,
+				data: {
+					summary: output.data.summarize,
+					isPaywalled: output.data.isPaywalled || hasPaywalledUrl(res.steps),
+				},
+			};
 		} else {
 			return { success: false, error: output.error.toString() };
 		}
