@@ -81,7 +81,7 @@ describe("processArticles", () => {
 			async () => ok(undefined),
 		);
 		expect(result.digestArticles).toEqual([article]);
-		expect(result.errors).toEqual(["judge failed"]);
+		expect(result.errors).toEqual(["[判定] https://test.com/1 judge failed"]);
 		expect(result.hotCount).toBe(0);
 	});
 
@@ -97,7 +97,9 @@ describe("processArticles", () => {
 			},
 		);
 		expect(notified).toEqual([{ article, summary: summaryFallback }]);
-		expect(result.errors).toEqual(["summarize failed"]);
+		expect(result.errors).toEqual([
+			"[要約] https://test.com/1 summarize failed",
+		]);
 		expect(result.hotCount).toBe(1);
 		expect(result.digestArticles).toEqual([]);
 	});
@@ -109,6 +111,8 @@ describe("processArticles", () => {
 			async () => ng("notify failed"),
 		);
 		expect(result.hotCount).toBe(0);
-		expect(result.errors).toEqual(["notify failed"]);
+		expect(result.errors).toEqual([
+			"[Hot通知] https://test.com/1 notify failed",
+		]);
 	});
 });
