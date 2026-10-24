@@ -17,6 +17,10 @@ export const filterRecent = (
 	return articles.filter((article) => article.pubDate > twentyFourHoursAgo);
 };
 
+// エラーに処理名と記事のURLを付け、どの記事のどの処理で失敗したか分かるようにする
+const withContext = (phase: string, article: Article, error: string): string =>
+	`[${phase}] ${article.link} ${error}`;
+
 export type PipelineResult = {
 	hotCount: number;
 	digestArticles: DigestArticle[];
@@ -39,7 +43,7 @@ export const processArticles = async (
 		const judgeResult = await classifier.judgeIsHot(article);
 
 		if (!judgeResult.success) {
-			errors.push(judgeResult.error);
+			errors.push(withContext("判定", article, judgeResult.error));
 			digestArticles.push({ article, isPaywalled: false });
 			continue;
 		}
@@ -59,14 +63,14 @@ export const processArticles = async (
 		if (summarizeResult.success) {
 			summary = summarizeResult.data.summary;
 		} else {
-			errors.push(summarizeResult.error);
+			errors.push(withContext("要約", article, summarizeResult.error));
 		}
 
 		const notifyResult = await notify({ article, summary });
 		if (notifyResult.success) {
 			hotCount++;
 		} else {
-			errors.push(notifyResult.error);
+			errors.push(withContext("Hot通知", article, notifyResult.error));
 		}
 	}
 

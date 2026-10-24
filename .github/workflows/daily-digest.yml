@@ -5,20 +5,42 @@ on:
     - cron: "0 20 * * *" # 05:00 JST
   workflow_dispatch:
 
+# 手動実行と定期実行が重なっても同時には走らせない(実行中のものは中断しない)
+concurrency:
+  group: daily-digest
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
 jobs:
   run:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: oven-sh/setup-bun@v2
 
       - run: bun install --frozen-lockfile
 
+      # ジョブ全体のタイムアウトだと後続の失敗通知も実行されないため、ステップ単位で上限を設ける
       - run: bun run index.ts
+        timeout-minutes: 50
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           DISCORD_HOT_WEBHOOK_URL: ${{ secrets.DISCORD_HOT_WEBHOOK_URL }}
           DISCORD_DIGEST_WEBHOOK_URL: ${{ secrets.DISCORD_DIGEST_WEBHOOK_URL }}
           DISCORD_LOG_WEBHOOK_URL: ${{ secrets.DISCORD_LOG_WEBHOOK_URL }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+
+      - name: Notify failure to Discord
+        if: failure()
+        env:
+          DISCORD_LOG_WEBHOOK_URL: ${{ secrets.DISCORD_LOG_WEBHOOK_URL }}
+          DISCORD_DIGEST_WEBHOOK_URL: ${{ secrets.DISCORD_DIGEST_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          webhook_url="${DISCORD_LOG_WEBHOOK_URL:-$DISCORD_DIGEST_WEBHOOK_URL}"
+          jq -n --arg url "$RUN_URL" '{content: ("❌ feedlens の実行に失敗しました\n" + $url)}' \
+            | curl -sS --fail-with-body -X POST -H "Content-Type: application/json" -d @- "$webhook_url"

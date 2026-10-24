@@ -66,12 +66,15 @@ const callGeminiWithRetry = async (
 			try {
 				res = await callGemini(prompt, schema, tools);
 			} catch (retryError) {
+				// メッセージだけでは原因を特定できないことがあるため、エラーの詳細をログに残す
+				console.error("Gemini API error detail:", retryError);
 				return {
 					success: false,
 					error: `callGeminiWithRetry: retried once after rate limit, but failed again: ${retryError instanceof Error ? retryError.message : String(retryError)}`,
 				};
 			}
 		} else {
+			console.error("Gemini API error detail:", error);
 			return {
 				success: false,
 				error: `callGeminiWithRetry: Gemini API call failed with a non-retryable error: ${error instanceof Error ? error.message : String(error)}`,
