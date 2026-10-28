@@ -48,6 +48,7 @@ const summaryResult = await notifyRunSummary({
 	recentCount: filteredArticle.length,
 	hotCount,
 	digestCount: digestArticles.length,
+	paywalledCount: digestArticles.filter((d) => d.isPaywalled).length,
 	errors: allErrors,
 });
 if (summaryResult.success === false) {

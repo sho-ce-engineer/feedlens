@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { Article, ClassifiedArticle } from "./domain/article";
-import type { Classifier } from "./domain/classifier";
+import type { Classifier, Summary } from "./domain/classifier";
 import type { Result } from "./domain/result";
 import { filterRecent, processArticles, summaryFallback } from "./pipeline";
 
@@ -18,7 +18,7 @@ const ng = <T>(error: string): Result<T> => ({ success: false, error });
 
 const makeClassifier = (
 	judge: Result<boolean>,
-	summarize: Result<string>,
+	summarize: Result<Summary>,
 ): Classifier => ({
 	judgeIsHot: async () => judge,
 	summarize: async () => summarize,
@@ -45,13 +45,13 @@ describe("processArticles", () => {
 		const notified: ClassifiedArticle[] = [];
 		const result = await processArticles(
 			[article],
-			makeClassifier(ok(false), ok("要約")),
+			makeClassifier(ok(false), ok({ summary: "要約", isPaywalled: false })),
 			async (c) => {
 				notified.push(c);
 				return ok(undefined);
 			},
 		);
-		expect(result.digestArticles).toEqual([article]);
+		expect(result.digestArticles).toEqual([{ article, isPaywalled: false }]);
 		expect(result.hotCount).toBe(0);
 		expect(notified).toEqual([]);
 		expect(result.errors).toEqual([]);
@@ -62,7 +62,7 @@ describe("processArticles", () => {
 		const notified: ClassifiedArticle[] = [];
 		const result = await processArticles(
 			[article],
-			makeClassifier(ok(true), ok("要約")),
+			makeClassifier(ok(true), ok({ summary: "要約", isPaywalled: false })),
 			async (c) => {
 				notified.push(c);
 				return ok(undefined);
@@ -77,10 +77,13 @@ describe("processArticles", () => {
 		const article = makeArticle(1);
 		const result = await processArticles(
 			[article],
-			makeClassifier(ng("judge failed"), ok("要約")),
+			makeClassifier(
+				ng("judge failed"),
+				ok({ summary: "要約", isPaywalled: false }),
+			),
 			async () => ok(undefined),
 		);
-		expect(result.digestArticles).toEqual([article]);
+		expect(result.digestArticles).toEqual([{ article, isPaywalled: false }]);
 		expect(result.errors).toEqual(["[判定] https://test.com/1 judge failed"]);
 		expect(result.hotCount).toBe(0);
 	});
@@ -104,10 +107,27 @@ describe("processArticles", () => {
 		expect(result.digestArticles).toEqual([]);
 	});
 
+	test("会員限定と判定された記事はHot通知せず、印を付けてダイジェストに回す", async () => {
+		const article = makeArticle(1);
+		const notified: ClassifiedArticle[] = [];
+		const result = await processArticles(
+			[article],
+			makeClassifier(ok(true), ok({ summary: "要約", isPaywalled: true })),
+			async (c) => {
+				notified.push(c);
+				return ok(undefined);
+			},
+		);
+		expect(notified).toEqual([]);
+		expect(result.hotCount).toBe(0);
+		expect(result.digestArticles).toEqual([{ article, isPaywalled: true }]);
+		expect(result.errors).toEqual([]);
+	});
+
 	test("Hotの通知に失敗した場合はhotCountに含めず、エラーを記録する", async () => {
 		const result = await processArticles(
 			[makeArticle(1)],
-			makeClassifier(ok(true), ok("要約")),
+			makeClassifier(ok(true), ok({ summary: "要約", isPaywalled: false })),
 			async () => ng("notify failed"),
 		);
 		expect(result.hotCount).toBe(0);

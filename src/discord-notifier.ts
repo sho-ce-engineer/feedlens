@@ -1,5 +1,9 @@
 import { digestWebhookUrl, hotNewsWebhookUrl, logWebhookUrl } from "./config";
-import type { Article, ClassifiedArticle } from "./domain/article";
+import type {
+	Article,
+	ClassifiedArticle,
+	DigestArticle,
+} from "./domain/article";
 import type { Result } from "./domain/result";
 
 type Field = {
@@ -80,6 +84,20 @@ export const postWebhook = async (
 	}
 };
 
+// 記事の出どころ。媒体名とドメインを併記し、どちらかが取れない場合は取れた方だけにする
+export const formatSource = (article: Article): string => {
+	let domain = "";
+	try {
+		domain = new URL(article.link).hostname;
+	} catch {
+		domain = "";
+	}
+	if (article.sourceName && domain) {
+		return `${article.sourceName} (${domain})`;
+	}
+	return article.sourceName || domain;
+};
+
 export const notifyHot = async (
 	classified: ClassifiedArticle,
 ): Promise<Result<void>> => {
@@ -91,6 +109,7 @@ export const notifyHot = async (
 					title: classified.article.title,
 					url: classified.article.link,
 					description: classified.summary,
+					footer: { text: formatSource(classified.article) || "出どころ不明" },
 				},
 			],
 		},
@@ -98,11 +117,18 @@ export const notifyHot = async (
 	);
 };
 
-export const buildDigestMessages = (articles: Article[]): Embed[][] => {
-	const fields: Field[] = articles.map((article) => ({
-		name: article.title.slice(0, 256), //256文字制限に対応
-		value: article.link.slice(0, 1024), //1024文字制限に対応
-	}));
+export const buildDigestMessages = (
+	digestArticles: DigestArticle[],
+): Embed[][] => {
+	const fields: Field[] = digestArticles.map(({ article, isPaywalled }) => {
+		const source = formatSource(article);
+		const name = `${isPaywalled ? "🔒 会員限定 " : ""}${article.title}`;
+		const value = source ? `${article.link}\n${source}` : article.link;
+		return {
+			name: name.slice(0, 256), //256文字制限に対応
+			value: value.slice(0, 1024), //1024文字制限に対応
+		};
+	});
 
 	const groupMessage: Embed[][] = [];
 	let currentMessage: Embed[] = [];
@@ -174,9 +200,9 @@ export const buildDigestMessages = (articles: Article[]): Embed[][] => {
 };
 
 export const notifyDigest = async (
-	articles: Article[],
+	digestArticles: DigestArticle[],
 ): Promise<Result<void>> => {
-	const groupMessage = buildDigestMessages(articles);
+	const groupMessage = buildDigestMessages(digestArticles);
 
 	const digestErrors: string[] = [];
 
@@ -204,6 +230,7 @@ export type RunSummary = {
 	recentCount: number;
 	hotCount: number;
 	digestCount: number;
+	paywalledCount: number;
 	errors: string[];
 };
 
@@ -217,7 +244,7 @@ export const buildRunSummary = (summary: RunSummary): string => {
 		`📊 feedlens 実行結果(${toDay})`,
 		`フィード: ${summary.feedCount}件(取得失敗 ${summary.fetchErrorCount}件)`,
 		`記事: ${summary.articleCount}件(解析失敗 ${summary.parseErrorCount}件) → 直近24時間 ${summary.recentCount}件`,
-		`通知: Hot ${summary.hotCount}件 / ダイジェスト ${summary.digestCount}件`,
+		`通知: Hot ${summary.hotCount}件 / ダイジェスト ${summary.digestCount}件(うち会員限定 ${summary.paywalledCount}件)`,
 	];
 
 	if (summary.errors.length > 0) {

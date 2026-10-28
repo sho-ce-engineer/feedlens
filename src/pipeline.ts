@@ -1,4 +1,8 @@
-import type { Article, ClassifiedArticle } from "./domain/article";
+import type {
+	Article,
+	ClassifiedArticle,
+	DigestArticle,
+} from "./domain/article";
 import type { Classifier } from "./domain/classifier";
 import type { Result } from "./domain/result";
 
@@ -19,19 +23,20 @@ const withContext = (phase: string, article: Article, error: string): string =>
 
 export type PipelineResult = {
 	hotCount: number;
-	digestArticles: Article[];
+	digestArticles: DigestArticle[];
 	errors: string[];
 };
 
 // 判定→要約→Hot通知を記事ごとに行う。
 // 判定に失敗した記事はダイジェストへ、要約に失敗した記事は要約なしのHotとして通知し、通知から漏らさない。
+// 会員限定と判定された記事は、要約しても本文を読めないため、Hotにせずダイジェストへ回す。
 export const processArticles = async (
 	articles: Article[],
 	classifier: Classifier,
 	notify: (classified: ClassifiedArticle) => Promise<Result<void>>,
 ): Promise<PipelineResult> => {
 	const errors: string[] = [];
-	const digestArticles: Article[] = [];
+	const digestArticles: DigestArticle[] = [];
 	let hotCount = 0;
 
 	for (const article of articles) {
@@ -39,19 +44,24 @@ export const processArticles = async (
 
 		if (!judgeResult.success) {
 			errors.push(withContext("判定", article, judgeResult.error));
-			digestArticles.push(article);
+			digestArticles.push({ article, isPaywalled: false });
 			continue;
 		}
 		if (judgeResult.data === false) {
-			digestArticles.push(article);
+			digestArticles.push({ article, isPaywalled: false });
 			continue;
 		}
 
 		const summarizeResult = await classifier.summarize(article);
 
+		if (summarizeResult.success && summarizeResult.data.isPaywalled) {
+			digestArticles.push({ article, isPaywalled: true });
+			continue;
+		}
+
 		let summary = summaryFallback;
 		if (summarizeResult.success) {
-			summary = summarizeResult.data;
+			summary = summarizeResult.data.summary;
 		} else {
 			errors.push(withContext("要約", article, summarizeResult.error));
 		}

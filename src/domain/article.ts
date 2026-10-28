@@ -28,3 +28,9 @@ export const ClassifiedArticleSchema = z.object({
 });
 
 export type ClassifiedArticle = z.infer<typeof ClassifiedArticleSchema>;
+
+// ダイジェストに載せる記事。会員限定と判定された記事は印を付けて表示する
+export type DigestArticle = {
+	article: Article;
+	isPaywalled: boolean;
+};

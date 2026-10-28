@@ -2,10 +2,11 @@ import { afterEach, describe, expect, test } from "bun:test";
 import {
 	buildDigestMessages,
 	buildRunSummary,
+	formatSource,
 	postWebhook,
 	type RunSummary,
 } from "./discord-notifier";
-import type { Article } from "./domain/article";
+import type { Article, DigestArticle } from "./domain/article";
 
 const makeArticle = (
 	i: number,
@@ -20,13 +21,23 @@ const makeArticle = (
 	sourceName: "テストwebメディア",
 });
 
+const makeDigest = (
+	i: number,
+	titleOverride?: string,
+	linkOverride?: string,
+	isPaywalled = false,
+): DigestArticle => ({
+	article: makeArticle(i, titleOverride, linkOverride),
+	isPaywalled,
+});
+
 describe("buildDigestMessages", () => {
 	test("記事が0件の場合、空の配列を返す", () => {
 		expect(buildDigestMessages([])).toEqual([]);
 	});
 
 	test("記事が1件の場合、1件の配列を返す", () => {
-		const testArticle = makeArticle(1, "テストのタイトル", "https://test.com");
+		const testArticle = makeDigest(1, "テストのタイトル", "https://test.com");
 		const result = buildDigestMessages([testArticle]);
 
 		const firstMessage = result[0];
@@ -40,13 +51,16 @@ describe("buildDigestMessages", () => {
 			throw new Error("テストの前提が崩れている: embedが1つも無い");
 		}
 		expect(firstEmbed.fields).toEqual([
-			{ name: "テストのタイトル", value: "https://test.com" },
+			{
+				name: "テストのタイトル",
+				value: "https://test.com\nテストwebメディア (test.com)",
+			},
 		]);
 		expect(firstEmbed.title).toMatch(/のダイジェスト\(1\/1\)$/);
 	});
 
 	test("記事が2〜3件の場合、1つのembedにまとまる", () => {
-		const articles = [makeArticle(1), makeArticle(2), makeArticle(3)];
+		const articles = [makeDigest(1), makeDigest(2), makeDigest(3)];
 		const result = buildDigestMessages(articles);
 
 		const firstMessage = result[0];
@@ -61,14 +75,23 @@ describe("buildDigestMessages", () => {
 		}
 		expect(firstEmbed.fields.length).toBe(3);
 		expect(firstEmbed.fields).toEqual([
-			{ name: "記事タイトル1", value: "https://test.com/1" },
-			{ name: "記事タイトル2", value: "https://test.com/2" },
-			{ name: "記事タイトル3", value: "https://test.com/3" },
+			{
+				name: "記事タイトル1",
+				value: "https://test.com/1\nテストwebメディア (test.com)",
+			},
+			{
+				name: "記事タイトル2",
+				value: "https://test.com/2\nテストwebメディア (test.com)",
+			},
+			{
+				name: "記事タイトル3",
+				value: "https://test.com/3\nテストwebメディア (test.com)",
+			},
 		]);
 	});
 
 	test("記事がちょうど25件の場合、1つのembedに収まる", () => {
-		const articles = Array.from({ length: 25 }, (_, i) => makeArticle(i + 1));
+		const articles = Array.from({ length: 25 }, (_, i) => makeDigest(i + 1));
 		const result = buildDigestMessages(articles);
 
 		const firstMessage = result[0];
@@ -85,7 +108,7 @@ describe("buildDigestMessages", () => {
 	});
 
 	test("記事が26件の場合、2つのembedに分かれる(25件+1件)", () => {
-		const articles = Array.from({ length: 26 }, (_, i) => makeArticle(i + 1));
+		const articles = Array.from({ length: 26 }, (_, i) => makeDigest(i + 1));
 		const result = buildDigestMessages(articles);
 
 		const firstMessage = result[0];
@@ -106,7 +129,7 @@ describe("buildDigestMessages", () => {
 		const longTitle = "あ".repeat(300);
 		const longLink = `https://test.com/${"a".repeat(1100)}`;
 		const articles = Array.from({ length: 5 }, (_, i) =>
-			makeArticle(i + 1, longTitle, longLink),
+			makeDigest(i + 1, longTitle, longLink),
 		);
 
 		const result = buildDigestMessages(articles);
@@ -128,7 +151,7 @@ describe("buildDigestMessages", () => {
 		// 文字数制限に触れないよう、あえて極端に短い文字列を使い、
 		// 「25件ごとにembedが分かれる」という個数の境界だけを検証する
 		const articles = Array.from({ length: 275 }, (_, i) =>
-			makeArticle(i + 1, "a", "a"),
+			makeDigest(i + 1, "a", "a"),
 		);
 		const result = buildDigestMessages(articles);
 
@@ -146,6 +169,35 @@ describe("buildDigestMessages", () => {
 		for (const embed of allEmbeds) {
 			expect(embed.fields.length).toBe(25);
 		}
+	});
+
+	test("会員限定の記事はタイトルの先頭に🔒 会員限定を付ける", () => {
+		const result = buildDigestMessages([
+			makeDigest(1, "有料記事", "https://test.com/1", true),
+		]);
+		expect(result[0]?.[0]?.fields[0]?.name).toBe("🔒 会員限定 有料記事");
+	});
+});
+
+describe("formatSource", () => {
+	test("媒体名とドメインを併記する", () => {
+		expect(
+			formatSource(makeArticle(1, "t", "https://news.example.com/a")),
+		).toBe("テストwebメディア (news.example.com)");
+	});
+
+	test("媒体名が無い場合はドメインのみ", () => {
+		const article = {
+			...makeArticle(1, "t", "https://news.example.com/a"),
+			sourceName: "",
+		};
+		expect(formatSource(article)).toBe("news.example.com");
+	});
+
+	test("リンクがURLとして解釈できない場合は媒体名のみ", () => {
+		expect(formatSource(makeArticle(1, "t", "not a url"))).toBe(
+			"テストwebメディア",
+		);
 	});
 });
 
@@ -254,6 +306,7 @@ describe("buildRunSummary", () => {
 		recentCount: 35,
 		hotCount: 4,
 		digestCount: 28,
+		paywalledCount: 3,
 		errors: [],
 	};
 
@@ -261,7 +314,7 @@ describe("buildRunSummary", () => {
 		const text = buildRunSummary(base);
 		expect(text).toContain("フィード: 17件(取得失敗 1件)");
 		expect(text).toContain("直近24時間 35件");
-		expect(text).toContain("Hot 4件 / ダイジェスト 28件");
+		expect(text).toContain("Hot 4件 / ダイジェスト 28件(うち会員限定 3件)");
 		expect(text).not.toContain("エラー");
 	});
 
