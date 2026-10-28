@@ -33,6 +33,7 @@ jobs:
           DISCORD_DIGEST_WEBHOOK_URL: ${{ secrets.DISCORD_DIGEST_WEBHOOK_URL }}
           DISCORD_LOG_WEBHOOK_URL: ${{ secrets.DISCORD_LOG_WEBHOOK_URL }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          GEMINI_CONCURRENCY: ${{ vars.GEMINI_CONCURRENCY }}
 
       - name: Notify failure to Discord
         if: failure()

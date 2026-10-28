@@ -135,4 +135,35 @@ describe("processArticles", () => {
 			"[Hot通知] https://test.com/1 notify failed",
 		]);
 	});
+
+	test("並列に判定しても、ダイジェストとHot通知は元の記事の順になる", async () => {
+		const articles = [1, 2, 3, 4].map((i) => makeArticle(i));
+		// 先頭の記事ほど判定に時間がかかり、後ろの記事から先に終わるようにする
+		const delays = new Map(articles.map((a, i) => [a.link, (4 - i) * 10]));
+		const classifier: Classifier = {
+			judgeIsHot: async (article) => {
+				await new Promise((r) => setTimeout(r, delays.get(article.link)));
+				// 偶数番目はHot、奇数番目はダイジェスト
+				return ok(article.link.endsWith("2") || article.link.endsWith("4"));
+			},
+			summarize: async (article) =>
+				ok({ summary: `要約${article.title}`, isPaywalled: false }),
+		};
+		const notified: string[] = [];
+		const result = await processArticles(
+			articles,
+			classifier,
+			async (c) => {
+				notified.push(c.article.link);
+				return ok(undefined);
+			},
+			4,
+		);
+		expect(notified).toEqual(["https://test.com/2", "https://test.com/4"]);
+		expect(result.digestArticles.map((d) => d.article.link)).toEqual([
+			"https://test.com/1",
+			"https://test.com/3",
+		]);
+		expect(result.hotCount).toBe(2);
+	});
 });

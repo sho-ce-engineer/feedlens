@@ -26,3 +26,13 @@ export const geminiModel = process.env.GEMINI_MODEL;
 // 実行結果サマリの通知先。未設定ならダイジェストと同じチャンネルに送る
 export const logWebhookUrl =
 	process.env.DISCORD_LOG_WEBHOOK_URL || digestWebhookUrl;
+
+// Geminiの同時呼び出し数。未設定・不正値なら3。無料枠のレート制限(429)に当たる場合は下げる
+const parsedGeminiConcurrency = Number.parseInt(
+	process.env.GEMINI_CONCURRENCY ?? "",
+	10,
+);
+export const geminiConcurrency =
+	Number.isNaN(parsedGeminiConcurrency) || parsedGeminiConcurrency < 1
+		? 3
+		: parsedGeminiConcurrency;
