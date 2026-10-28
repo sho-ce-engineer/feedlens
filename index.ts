@@ -1,4 +1,5 @@
 import urls from "./feeds.json";
+import { geminiConcurrency } from "./src/config";
 import {
 	notifyDigest,
 	notifyHot,
@@ -18,6 +19,7 @@ const { hotCount, digestArticles, errors } = await processArticles(
 	filteredArticle,
 	classifier,
 	notifyHot,
+	geminiConcurrency,
 );
 
 if (digestArticles.length > 0) {

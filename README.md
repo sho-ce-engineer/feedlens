@@ -41,12 +41,13 @@ interfaceによる抽象化は「**実装を差し替える可能性が現実的
 ```
 ① feed-fetcher.ts でRSSフィードを取得
 ② 直近24時間以内に公開された記事のみに絞り込み
-③ 記事ごとに GeminiClassifier.judgeIsHot() で判定
+③ 記事ごとに GeminiClassifier.judgeIsHot() で判定(判定・要約は GEMINI_CONCURRENCY 件まで並列に実行)
      false → ダイジェスト用配列に追加
      判定失敗 → ダイジェスト用配列に追加(通知から漏らさない)
      true  → GeminiClassifier.summarize() で要約(URL context toolで本文を取得)
            → 会員限定と判定された記事は「🔒 会員限定」を付けてダイジェスト用配列に追加
            → それ以外は要約付きで #hot-news に個別通知(要約失敗時は要約なしで通知)
+             ※Hot通知は全記事の判定・要約が終わった後、元の記事の順に1件ずつ送る
 ④ ③の後、ダイジェスト用配列をまとめて #daily-digest に1回通知
 ⑤ 発生したエラーは処理を止めずに記録し、最後にまとめてログ出力
 ⑥ 実行結果サマリ(件数・エラー)を Discord に1回通知
@@ -86,6 +87,7 @@ DISCORD_HOT_WEBHOOK_URL = your_hot_news_channel_webhook_url
 DISCORD_DIGEST_WEBHOOK_URL = your_digest_channel_webhook_url
 DISCORD_LOG_WEBHOOK_URL = your_log_channel_webhook_url # 任意。実行結果サマリの通知先(未設定ならダイジェストと同じチャンネル)
 GEMINI_MODEL = gemini-3.5-flash-lite
+GEMINI_CONCURRENCY = 3 # 任意。Geminiの同時呼び出し数(未設定なら3)
 ```
 
 - Gemini APIキーは [Google AI Studio](https://ai.google.dev/) から取得できます
@@ -127,6 +129,7 @@ bun run index.ts
 
 **Variables**
 - `GEMINI_MODEL`
+- `GEMINI_CONCURRENCY`(任意。Geminiの同時呼び出し数。未設定なら3。レート制限(429)に当たる場合は下げる)
 
 ## 既知の制約
 

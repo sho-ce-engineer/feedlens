@@ -1,3 +1,4 @@
+import { mapWithConcurrency } from "./concurrency";
 import type {
 	Article,
 	ClassifiedArticle,
@@ -27,50 +28,88 @@ export type PipelineResult = {
 	errors: string[];
 };
 
-// 判定→要約→Hot通知を記事ごとに行う。
-// 判定に失敗した記事はダイジェストへ、要約に失敗した記事は要約なしのHotとして通知し、通知から漏らさない。
+type ClassifyOutcome =
+	| { type: "digest"; digest: DigestArticle; errors: string[] }
+	| { type: "hot"; classified: ClassifiedArticle; errors: string[] };
+
+// 1記事を判定・要約し、Hot通知するかダイジェストに回すかを決める。
+// 判定に失敗した記事はダイジェストへ、要約に失敗した記事は要約なしのHotとし、通知から漏らさない。
 // 会員限定と判定された記事は、要約しても本文を読めないため、Hotにせずダイジェストへ回す。
+const classifyArticle = async (
+	article: Article,
+	classifier: Classifier,
+): Promise<ClassifyOutcome> => {
+	const judgeResult = await classifier.judgeIsHot(article);
+
+	if (!judgeResult.success) {
+		return {
+			type: "digest",
+			digest: { article, isPaywalled: false },
+			errors: [withContext("判定", article, judgeResult.error)],
+		};
+	}
+	if (judgeResult.data === false) {
+		return {
+			type: "digest",
+			digest: { article, isPaywalled: false },
+			errors: [],
+		};
+	}
+
+	const summarizeResult = await classifier.summarize(article);
+
+	if (summarizeResult.success && summarizeResult.data.isPaywalled) {
+		return {
+			type: "digest",
+			digest: { article, isPaywalled: true },
+			errors: [],
+		};
+	}
+	if (!summarizeResult.success) {
+		return {
+			type: "hot",
+			classified: { article, summary: summaryFallback },
+			errors: [withContext("要約", article, summarizeResult.error)],
+		};
+	}
+	return {
+		type: "hot",
+		classified: { article, summary: summarizeResult.data.summary },
+		errors: [],
+	};
+};
+
+// 判定・要約(Geminiの呼び出し)は記事ごとに独立しているため、concurrency件まで並列に行う。
+// Hot通知はDiscordのレート制限を避けるため、すべての判定・要約の後に元の記事の順で1件ずつ送る。
 export const processArticles = async (
 	articles: Article[],
 	classifier: Classifier,
 	notify: (classified: ClassifiedArticle) => Promise<Result<void>>,
+	concurrency = 1,
 ): Promise<PipelineResult> => {
+	const outcomes = await mapWithConcurrency(articles, concurrency, (article) =>
+		classifyArticle(article, classifier),
+	);
+
 	const errors: string[] = [];
 	const digestArticles: DigestArticle[] = [];
 	let hotCount = 0;
 
-	for (const article of articles) {
-		const judgeResult = await classifier.judgeIsHot(article);
+	for (const outcome of outcomes) {
+		errors.push(...outcome.errors);
 
-		if (!judgeResult.success) {
-			errors.push(withContext("判定", article, judgeResult.error));
-			digestArticles.push({ article, isPaywalled: false });
-			continue;
-		}
-		if (judgeResult.data === false) {
-			digestArticles.push({ article, isPaywalled: false });
+		if (outcome.type === "digest") {
+			digestArticles.push(outcome.digest);
 			continue;
 		}
 
-		const summarizeResult = await classifier.summarize(article);
-
-		if (summarizeResult.success && summarizeResult.data.isPaywalled) {
-			digestArticles.push({ article, isPaywalled: true });
-			continue;
-		}
-
-		let summary = summaryFallback;
-		if (summarizeResult.success) {
-			summary = summarizeResult.data.summary;
-		} else {
-			errors.push(withContext("要約", article, summarizeResult.error));
-		}
-
-		const notifyResult = await notify({ article, summary });
+		const notifyResult = await notify(outcome.classified);
 		if (notifyResult.success) {
 			hotCount++;
 		} else {
-			errors.push(withContext("Hot通知", article, notifyResult.error));
+			errors.push(
+				withContext("Hot通知", outcome.classified.article, notifyResult.error),
+			);
 		}
 	}
 
