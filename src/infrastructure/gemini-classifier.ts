@@ -5,7 +5,7 @@ import type { Article } from "../domain/article";
 import type { Classifier, Summary } from "../domain/classifier";
 import { CriteriaSchema } from "../domain/criteria";
 import type { Result } from "../domain/result";
-import { buildJudgePrompt } from "./prompts";
+import { buildJudgePrompt, truncateDescription } from "./prompts";
 
 const criteria = CriteriaSchema.parse(criteriaJson);
 
@@ -138,7 +138,7 @@ export class GeminiClassifier implements Classifier {
 
         URL: ${article.link}
         タイトル: ${article.title}
-        本文抜粋: ${article.description}
+        本文抜粋: ${truncateDescription(article.description)}
 		
 		記事本文の閲覧に会員登録・ログイン・有料購読が必要で本文を読めなかった場合
 		(取得できた本文が冒頭のリード文だけなど、極端に短い場合を含む)は、isPaywalledをtrueにしてください。
