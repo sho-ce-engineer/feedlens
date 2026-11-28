@@ -1,5 +1,6 @@
 import urls from "./feeds.json";
 import { geminiConcurrency } from "./src/config";
+import { dedupeArticles } from "./src/dedupe";
 import {
 	notifyDigest,
 	notifyHot,
@@ -11,7 +12,9 @@ import { filterRecent, processArticles } from "./src/pipeline";
 
 const { articles, articlesError, fetchError } = await fetchFeeds();
 
-const filteredArticle = filterRecent(articles);
+const recentArticles = filterRecent(articles);
+const { unique: filteredArticle, duplicateCount } =
+	dedupeArticles(recentArticles);
 
 const classifier = new GeminiClassifier();
 
@@ -47,7 +50,8 @@ const summaryResult = await notifyRunSummary({
 	fetchErrorCount: fetchError.length,
 	parseErrorCount: articlesError.length,
 	articleCount: articles.length,
-	recentCount: filteredArticle.length,
+	recentCount: recentArticles.length,
+	duplicateCount,
 	hotCount,
 	digestCount: digestArticles.length,
 	paywalledCount: digestArticles.filter((d) => d.isPaywalled).length,
