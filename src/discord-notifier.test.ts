@@ -304,6 +304,7 @@ describe("buildRunSummary", () => {
 		parseErrorCount: 2,
 		articleCount: 120,
 		recentCount: 35,
+		duplicateCount: 6,
 		hotCount: 4,
 		digestCount: 28,
 		paywalledCount: 3,
@@ -314,6 +315,7 @@ describe("buildRunSummary", () => {
 		const text = buildRunSummary(base);
 		expect(text).toContain("フィード: 17件(取得失敗 1件)");
 		expect(text).toContain("直近24時間 35件");
+		expect(text).toContain("重複除外: 6件");
 		expect(text).toContain("Hot 4件 / ダイジェスト 28件(うち会員限定 3件)");
 		expect(text).not.toContain("エラー");
 	});

@@ -228,6 +228,7 @@ export type RunSummary = {
 	parseErrorCount: number;
 	articleCount: number;
 	recentCount: number;
+	duplicateCount: number;
 	hotCount: number;
 	digestCount: number;
 	paywalledCount: number;
@@ -244,6 +245,7 @@ export const buildRunSummary = (summary: RunSummary): string => {
 		`📊 feedlens 実行結果(${toDay})`,
 		`フィード: ${summary.feedCount}件(取得失敗 ${summary.fetchErrorCount}件)`,
 		`記事: ${summary.articleCount}件(解析失敗 ${summary.parseErrorCount}件) → 直近24時間 ${summary.recentCount}件`,
+		`重複除外: ${summary.duplicateCount}件`,
 		`通知: Hot ${summary.hotCount}件 / ダイジェスト ${summary.digestCount}件(うち会員限定 ${summary.paywalledCount}件)`,
 	];
 
