@@ -1,16 +1,18 @@
 import * as z from "zod";
 import criteriaJson from "../../criteria.json";
 import { ai, geminiModel } from "../config";
-import type { Article } from "../domain/article";
-import type { Classifier, Summary } from "../domain/classifier";
+import { type Article, CategorySchema } from "../domain/article";
+import type { Classifier, Judgement, Summary } from "../domain/classifier";
 import { CriteriaSchema } from "../domain/criteria";
 import type { Result } from "../domain/result";
 import { buildJudgePrompt, truncateDescription } from "./prompts";
 
 const criteria = CriteriaSchema.parse(criteriaJson);
 
-const isHotSchema = z.object({
+export const judgeSchema = z.object({
 	isHot: z.boolean(),
+	category: CategorySchema,
+	score: z.number().int().min(1).max(10),
 });
 
 const summarizeSchema = z.object({
@@ -88,10 +90,10 @@ const callGeminiWithRetry = async (
 };
 
 export class GeminiClassifier implements Classifier {
-	async judgeIsHot(article: Article): Promise<Result<boolean>> {
-		const isHotPrompt = buildJudgePrompt(article, criteria);
+	async judge(article: Article): Promise<Result<Judgement>> {
+		const judgePrompt = buildJudgePrompt(article, criteria);
 
-		const callResult = await callGeminiWithRetry(isHotPrompt, isHotSchema);
+		const callResult = await callGeminiWithRetry(judgePrompt, judgeSchema);
 		if (!callResult.success) {
 			return { success: false, error: callResult.error };
 		}
@@ -100,23 +102,23 @@ export class GeminiClassifier implements Classifier {
 		if (!res.output_text) {
 			return {
 				success: false,
-				error: "judgeIsHot: Gemini response contained no output_text.",
+				error: "judge: Gemini response contained no output_text.",
 			};
 		}
 
-		let output: ReturnType<typeof isHotSchema.safeParse>;
+		let output: ReturnType<typeof judgeSchema.safeParse>;
 
 		try {
-			output = isHotSchema.safeParse(JSON.parse(res.output_text));
+			output = judgeSchema.safeParse(JSON.parse(res.output_text));
 		} catch {
 			return {
 				success: false,
-				error: `judgeIsHot: failed to parse output_text as JSON: ${res.output_text}`,
+				error: `judge: failed to parse output_text as JSON: ${res.output_text}`,
 			};
 		}
 
 		if (output.success === true) {
-			return { success: true, data: output.data.isHot };
+			return { success: true, data: output.data };
 		} else {
 			return { success: false, error: output.error.toString() };
 		}
@@ -132,9 +134,6 @@ export class GeminiClassifier implements Classifier {
         判断できるようにすることです。
 
         単なる一言コメントではなく、記事が何を伝えているのか具体的に分かる要約にしてください。
-
-		また、おすすめ度をレーティングしてください。
-		（例：これが基準→★★★☆☆、絶対読むべき→★★★★★、もしかしたら何かで役立つかも等→★☆☆☆☆）
 
         URL: ${article.link}
         タイトル: ${article.title}

@@ -24,6 +24,12 @@ ${themes}
 
 該当するならisHotをtrue、${rejects}など上記に当てはまらない場合はfalseとしてください。
 
+isHotがtrueの場合は、次の2つも出力してください。
+- category: 開発・技術・業界動向・キャリア・学びに関する記事は"tech"、ガジェット・PC・周辺機器・サービスの製品紹介やレビューは"product"としてください。
+- score: 読むべき度合いを1〜10の整数で付けてください。10=絶対に読むべき、7〜9=読む価値が高い、5〜6=標準的、3〜4=時間があれば読めばよい、1〜2=読まなくてよい。記事ごとに差が付くよう、同じ点数に偏らないでください。
+
+isHotがfalseの場合は、categoryを"tech"、scoreを1としてください。
+
 タイトル: ${article.title}
 本文抜粋: ${truncateDescription(article.description)}`;
 };
