@@ -2,13 +2,13 @@ import urls from "./feeds.json";
 import { geminiConcurrency } from "./src/config";
 import { dedupeArticles } from "./src/dedupe";
 import {
-	notifyDigest,
+	notifyHeading,
 	notifyHot,
 	notifyRunSummary,
 } from "./src/discord-notifier";
 import { fetchFeeds } from "./src/feed-fetcher";
 import { GeminiClassifier } from "./src/infrastructure/gemini-classifier";
-import { filterRecent, processArticles } from "./src/pipeline";
+import { filterRecent, processArticles, sendSections } from "./src/pipeline";
 
 const { articles, articlesError, fetchError } = await fetchFeeds();
 
@@ -18,19 +18,17 @@ const { unique: filteredArticle, duplicateCount } =
 
 const classifier = new GeminiClassifier();
 
-const { hotCount, digestArticles, errors } = await processArticles(
+const { sections, selection, judgeFailedCount, errors } = await processArticles(
 	filteredArticle,
 	classifier,
-	notifyHot,
 	geminiConcurrency,
 );
 
-if (digestArticles.length > 0) {
-	const resultDigest = await notifyDigest(digestArticles);
-	if (resultDigest.success === false) {
-		errors.push(resultDigest.error);
-	}
-}
+const sent = await sendSections(sections, {
+	heading: notifyHeading,
+	hot: notifyHot,
+});
+errors.push(...sent.errors);
 
 const fetchErrorMessages = fetchError.map(
 	(e) => `フィード取得失敗 ${e.url}: ${String(e.reason)}`,
@@ -52,9 +50,11 @@ const summaryResult = await notifyRunSummary({
 	articleCount: articles.length,
 	recentCount: recentArticles.length,
 	duplicateCount,
-	hotCount,
-	digestCount: digestArticles.length,
-	paywalledCount: digestArticles.filter((d) => d.isPaywalled).length,
+	judgeFailedCount,
+	categories: {
+		tech: { ...selection.tech, notified: sent.notified.tech },
+		product: { ...selection.product, notified: sent.notified.product },
+	},
 	errors: allErrors,
 });
 if (summaryResult.success === false) {

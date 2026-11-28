@@ -1,4 +1,4 @@
-import type { Article } from "./article";
+import type { Article, Category } from "./article";
 import type { Result } from "./result";
 
 export type Summary = {
@@ -7,7 +7,16 @@ export type Summary = {
 	isPaywalled: boolean;
 };
 
+export type HotJudgement = {
+	isHot: true;
+	category: Category;
+	// 1〜10の整数。大きいほど読むべき
+	score: number;
+};
+
+export type Judgement = { isHot: false } | HotJudgement;
+
 export interface Classifier {
-	judgeIsHot(article: Article): Promise<Result<boolean>>;
+	judge(article: Article): Promise<Result<Judgement>>;
 	summarize(article: Article): Promise<Result<Summary>>;
 }

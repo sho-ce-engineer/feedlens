@@ -1,5 +1,14 @@
 import { z } from "zod";
 
+export const categories = ["tech", "product"] as const;
+export const CategorySchema = z.enum(categories);
+export type Category = z.infer<typeof CategorySchema>;
+
+export const categoryLabels: Record<Category, string> = {
+	tech: "技術記事",
+	product: "製品・ガジェット",
+};
+
 //RSSから取得した記事
 export const ArticleSchema = z.object({
 	title: z.string(),
@@ -25,12 +34,8 @@ export type ArticleError = {
 export const ClassifiedArticleSchema = z.object({
 	article: ArticleSchema,
 	summary: z.string(),
+	category: CategorySchema,
+	score: z.number().int().min(1).max(10),
 });
 
 export type ClassifiedArticle = z.infer<typeof ClassifiedArticleSchema>;
-
-// ダイジェストに載せる記事。会員限定と判定された記事は印を付けて表示する
-export type DigestArticle = {
-	article: Article;
-	isPaywalled: boolean;
-};

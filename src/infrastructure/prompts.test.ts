@@ -29,6 +29,13 @@ describe("buildJudgePrompt", () => {
 		expect(prompt).toContain("タイトル: テストタイトル");
 		expect(prompt).toContain("本文抜粋: テスト本文");
 	});
+
+	test("分類(tech/product)と1〜10の点数の指示が含まれる", () => {
+		const prompt = buildJudgePrompt(article, criteria);
+		expect(prompt).toContain('"tech"');
+		expect(prompt).toContain('"product"');
+		expect(prompt).toContain("1〜10の整数");
+	});
 });
 
 describe("truncateDescription", () => {

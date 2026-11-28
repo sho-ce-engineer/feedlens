@@ -1,12 +1,15 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import {
-	buildDigestMessages,
+	buildHeading,
+	buildHotPayload,
 	buildRunSummary,
 	formatSource,
+	isMostlyCut,
 	postWebhook,
 	type RunSummary,
 } from "./discord-notifier";
-import type { Article, DigestArticle } from "./domain/article";
+import type { Article } from "./domain/article";
+import type { CategoryStats } from "./pipeline";
 
 const makeArticle = (
 	i: number,
@@ -19,164 +22,6 @@ const makeArticle = (
 	pubDate: new Date(),
 	description: "テストの説明文です",
 	sourceName: "テストwebメディア",
-});
-
-const makeDigest = (
-	i: number,
-	titleOverride?: string,
-	linkOverride?: string,
-	isPaywalled = false,
-): DigestArticle => ({
-	article: makeArticle(i, titleOverride, linkOverride),
-	isPaywalled,
-});
-
-describe("buildDigestMessages", () => {
-	test("記事が0件の場合、空の配列を返す", () => {
-		expect(buildDigestMessages([])).toEqual([]);
-	});
-
-	test("記事が1件の場合、1件の配列を返す", () => {
-		const testArticle = makeDigest(1, "テストのタイトル", "https://test.com");
-		const result = buildDigestMessages([testArticle]);
-
-		const firstMessage = result[0];
-		if (!firstMessage) {
-			throw new Error("テストの前提が崩れている: メッセージが1つも無い");
-		}
-		expect(firstMessage.length).toBe(1);
-
-		const firstEmbed = firstMessage[0];
-		if (!firstEmbed) {
-			throw new Error("テストの前提が崩れている: embedが1つも無い");
-		}
-		expect(firstEmbed.fields).toEqual([
-			{
-				name: "テストのタイトル",
-				value: "https://test.com\nテストwebメディア (test.com)",
-			},
-		]);
-		expect(firstEmbed.title).toMatch(/のダイジェスト\(1\/1\)$/);
-	});
-
-	test("記事が2〜3件の場合、1つのembedにまとまる", () => {
-		const articles = [makeDigest(1), makeDigest(2), makeDigest(3)];
-		const result = buildDigestMessages(articles);
-
-		const firstMessage = result[0];
-		if (!firstMessage) {
-			throw new Error("テストの前提が崩れている: メッセージが1つも無い");
-		}
-		expect(firstMessage.length).toBe(1);
-
-		const firstEmbed = firstMessage[0];
-		if (!firstEmbed) {
-			throw new Error("テストの前提が崩れている: embedが1つも無い");
-		}
-		expect(firstEmbed.fields.length).toBe(3);
-		expect(firstEmbed.fields).toEqual([
-			{
-				name: "記事タイトル1",
-				value: "https://test.com/1\nテストwebメディア (test.com)",
-			},
-			{
-				name: "記事タイトル2",
-				value: "https://test.com/2\nテストwebメディア (test.com)",
-			},
-			{
-				name: "記事タイトル3",
-				value: "https://test.com/3\nテストwebメディア (test.com)",
-			},
-		]);
-	});
-
-	test("記事がちょうど25件の場合、1つのembedに収まる", () => {
-		const articles = Array.from({ length: 25 }, (_, i) => makeDigest(i + 1));
-		const result = buildDigestMessages(articles);
-
-		const firstMessage = result[0];
-		if (!firstMessage) {
-			throw new Error("テストの前提が崩れている: メッセージが1つも無い");
-		}
-		expect(firstMessage.length).toBe(1);
-
-		const firstEmbed = firstMessage[0];
-		if (!firstEmbed) {
-			throw new Error("テストの前提が崩れている: embedが1つも無い");
-		}
-		expect(firstEmbed.fields.length).toBe(25);
-	});
-
-	test("記事が26件の場合、2つのembedに分かれる(25件+1件)", () => {
-		const articles = Array.from({ length: 26 }, (_, i) => makeDigest(i + 1));
-		const result = buildDigestMessages(articles);
-
-		const firstMessage = result[0];
-		if (!firstMessage) {
-			throw new Error("テストの前提が崩れている: メッセージが1つも無い");
-		}
-		expect(firstMessage.length).toBe(2);
-
-		const [firstEmbed, secondEmbed] = firstMessage;
-		if (!firstEmbed || !secondEmbed) {
-			throw new Error("テストの前提が崩れている: embedが2つ無い");
-		}
-		expect(firstEmbed.fields.length).toBe(25);
-		expect(secondEmbed.fields.length).toBe(1);
-	});
-
-	test("1件のfieldが極端に長い場合、25件に満たなくてもembedが分かれる", () => {
-		const longTitle = "あ".repeat(300);
-		const longLink = `https://test.com/${"a".repeat(1100)}`;
-		const articles = Array.from({ length: 5 }, (_, i) =>
-			makeDigest(i + 1, longTitle, longLink),
-		);
-
-		const result = buildDigestMessages(articles);
-
-		// 2つのembedは、文字数上限の都合で別々のメッセージに分かれる
-		expect(result.length).toBe(2);
-
-		const [firstMessage, secondMessage] = result;
-		if (!firstMessage || !secondMessage) {
-			throw new Error("テストの前提が崩れている: メッセージが2つ無い");
-		}
-		expect(firstMessage.length).toBe(1);
-		expect(firstMessage[0]?.fields.length).toBe(4);
-		expect(secondMessage.length).toBe(1);
-		expect(secondMessage[0]?.fields.length).toBe(1);
-	});
-
-	test("embedが11個生まれる場合、メッセージが2通に分かれる(10embed+1embed)", () => {
-		// 文字数制限に触れないよう、あえて極端に短い文字列を使い、
-		// 「25件ごとにembedが分かれる」という個数の境界だけを検証する
-		const articles = Array.from({ length: 275 }, (_, i) =>
-			makeDigest(i + 1, "a", "a"),
-		);
-		const result = buildDigestMessages(articles);
-
-		expect(result.length).toBe(2);
-
-		const [firstMessage, secondMessage] = result;
-		if (!firstMessage || !secondMessage) {
-			throw new Error("テストの前提が崩れている: メッセージが2つ無い");
-		}
-		expect(firstMessage.length).toBe(10);
-		expect(secondMessage.length).toBe(1);
-
-		const allEmbeds = [...firstMessage, ...secondMessage];
-		expect(allEmbeds.length).toBe(11);
-		for (const embed of allEmbeds) {
-			expect(embed.fields.length).toBe(25);
-		}
-	});
-
-	test("会員限定の記事はタイトルの先頭に🔒 会員限定を付ける", () => {
-		const result = buildDigestMessages([
-			makeDigest(1, "有料記事", "https://test.com/1", true),
-		]);
-		expect(result[0]?.[0]?.fields[0]?.name).toBe("🔒 会員限定 有料記事");
-	});
 });
 
 describe("formatSource", () => {
@@ -297,6 +142,53 @@ describe("postWebhook", () => {
 	});
 });
 
+describe("buildHotPayload", () => {
+	test("タイトル・リンク・要約と、出どころ・おすすめ度を含む", () => {
+		const payload = buildHotPayload({
+			article: makeArticle(1, "テストのタイトル", "https://test.com/a"),
+			summary: "要約です",
+			category: "tech",
+			score: 8,
+		});
+		expect(payload.embeds).toEqual([
+			{
+				title: "テストのタイトル",
+				url: "https://test.com/a",
+				description: "要約です",
+				footer: { text: "テストwebメディア (test.com) ・ おすすめ度 8/10" },
+			},
+		]);
+	});
+});
+
+describe("buildHeading", () => {
+	test("カテゴリ名と件数の見出しにする", () => {
+		expect(buildHeading("tech", 15)).toBe("## 技術記事(15件)");
+		expect(buildHeading("product", 5)).toBe("## 製品・ガジェット(5件)");
+	});
+});
+
+const stats = (overrides: Partial<CategoryStats> = {}): CategoryStats => ({
+	limit: 15,
+	candidates: 20,
+	cut: 5,
+	paywalled: 0,
+	notified: 15,
+	...overrides,
+});
+
+describe("isMostlyCut", () => {
+	test("候補の半数を超えて省略されているときだけtrue", () => {
+		expect(isMostlyCut(stats({ candidates: 20, cut: 11 }))).toBe(true);
+		expect(isMostlyCut(stats({ candidates: 20, cut: 10 }))).toBe(false);
+		expect(isMostlyCut(stats({ candidates: 20, cut: 5 }))).toBe(false);
+	});
+
+	test("候補が0件ならfalse", () => {
+		expect(isMostlyCut(stats({ candidates: 0, cut: 0 }))).toBe(false);
+	});
+});
+
 describe("buildRunSummary", () => {
 	const base: RunSummary = {
 		feedCount: 17,
@@ -305,9 +197,17 @@ describe("buildRunSummary", () => {
 		articleCount: 120,
 		recentCount: 35,
 		duplicateCount: 6,
-		hotCount: 4,
-		digestCount: 28,
-		paywalledCount: 3,
+		judgeFailedCount: 2,
+		categories: {
+			tech: stats({ limit: 15, candidates: 20, notified: 15, cut: 5 }),
+			product: stats({
+				limit: 5,
+				candidates: 3,
+				notified: 2,
+				cut: 0,
+				paywalled: 1,
+			}),
+		},
 		errors: [],
 	};
 
@@ -316,8 +216,36 @@ describe("buildRunSummary", () => {
 		expect(text).toContain("フィード: 17件(取得失敗 1件)");
 		expect(text).toContain("直近24時間 35件");
 		expect(text).toContain("重複除外: 6件");
-		expect(text).toContain("Hot 4件 / ダイジェスト 28件(うち会員限定 3件)");
+		expect(text).toContain("判定失敗: 2件");
 		expect(text).not.toContain("エラー");
+	});
+
+	test("カテゴリごとに、Hot件数・通知数・上限で省略した数・会員限定の破棄数を出す", () => {
+		const text = buildRunSummary(base);
+		expect(text).toContain(
+			"技術記事(上限15件): Hot 20件 → 通知 15件 / 上限で省略 5件 / 会員限定で破棄 0件",
+		);
+		expect(text).toContain(
+			"製品・ガジェット(上限5件): Hot 3件 → 通知 2件 / 上限で省略 0件 / 会員限定で破棄 1件",
+		);
+	});
+
+	test("省略が少なければ、見直しの警告は出ない", () => {
+		expect(buildRunSummary(base)).not.toContain("見直しを検討");
+	});
+
+	test("候補の半数超が省略されたカテゴリは、見直しの警告を出す", () => {
+		const text = buildRunSummary({
+			...base,
+			categories: {
+				...base.categories,
+				tech: stats({ limit: 15, candidates: 40, notified: 15, cut: 25 }),
+			},
+		});
+		expect(text).toContain(
+			"⚠️ 技術記事: Hot候補の半数超(25/40件)が上限で省略されています",
+		);
+		expect(text).not.toContain("⚠️ 製品・ガジェット");
 	});
 
 	test("エラーは件数と内容を表示し、10件を超えた分は省略する", () => {

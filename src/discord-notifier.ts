@@ -1,23 +1,17 @@
-import { digestWebhookUrl, hotNewsWebhookUrl, logWebhookUrl } from "./config";
-import type {
-	Article,
-	ClassifiedArticle,
-	DigestArticle,
+import { hotNewsWebhookUrl, logWebhookUrl } from "./config";
+import {
+	type Article,
+	type Category,
+	type ClassifiedArticle,
+	categories,
+	categoryLabels,
 } from "./domain/article";
 import type { Result } from "./domain/result";
-
-type Field = {
-	name: string;
-	value: string;
-};
-type Embed = { title: string; fields: Field[] };
+import type { CategoryStats } from "./pipeline";
 
 const toDay = new Date().toLocaleDateString("ja-JP", {
 	timeZone: "Asia/Tokyo",
 });
-
-//Discord：メッセージ文字数上限6000文字のため、titleとマージンを設けた値
-const textLimit = 6000 * 0.9;
 
 const maxRateLimitRetries = 3;
 const maxRetryWaitMs = 30_000;
@@ -98,128 +92,41 @@ export const formatSource = (article: Article): string => {
 	return article.sourceName || domain;
 };
 
+export const buildHotPayload = (classified: ClassifiedArticle) => ({
+	embeds: [
+		{
+			title: classified.article.title,
+			url: classified.article.link,
+			description: classified.summary,
+			footer: {
+				text: `${formatSource(classified.article) || "出どころ不明"} ・ おすすめ度 ${classified.score}/10`,
+			},
+		},
+	],
+});
+
 export const notifyHot = async (
 	classified: ClassifiedArticle,
 ): Promise<Result<void>> => {
 	return postWebhook(
 		hotNewsWebhookUrl,
-		{
-			embeds: [
-				{
-					title: classified.article.title,
-					url: classified.article.link,
-					description: classified.summary,
-					footer: { text: formatSource(classified.article) || "出どころ不明" },
-				},
-			],
-		},
+		buildHotPayload(classified),
 		"notifyHot",
 	);
 };
 
-export const buildDigestMessages = (
-	digestArticles: DigestArticle[],
-): Embed[][] => {
-	const fields: Field[] = digestArticles.map(({ article, isPaywalled }) => {
-		const source = formatSource(article);
-		const name = `${isPaywalled ? "🔒 会員限定 " : ""}${article.title}`;
-		const value = source ? `${article.link}\n${source}` : article.link;
-		return {
-			name: name.slice(0, 256), //256文字制限に対応
-			value: value.slice(0, 1024), //1024文字制限に対応
-		};
-	});
+export const buildHeading = (category: Category, count: number): string =>
+	`## ${categoryLabels[category]}(${count}件)`;
 
-	const groupMessage: Embed[][] = [];
-	let currentMessage: Embed[] = [];
-	let messageTextLength = 0;
-	let currentEmbed: Field[] = [];
-	let currentEmbedTextLength = 0;
-
-	for (const field of fields) {
-		const fieldTextLength = field.name.length + field.value.length;
-		if (
-			currentEmbed.length >= 25 ||
-			currentEmbedTextLength + fieldTextLength >= textLimit
-		) {
-			const completedEmbed: Embed = {
-				title: "",
-				fields: currentEmbed,
-			};
-
-			if (
-				currentMessage.length >= 10 ||
-				messageTextLength + currentEmbedTextLength >= textLimit
-			) {
-				groupMessage.push(currentMessage);
-				currentMessage = [];
-				messageTextLength = 0;
-			}
-
-			currentMessage.push(completedEmbed);
-			messageTextLength = messageTextLength + currentEmbedTextLength;
-			currentEmbed = [];
-			currentEmbedTextLength = 0;
-		}
-		currentEmbed.push(field);
-		currentEmbedTextLength = currentEmbedTextLength + fieldTextLength;
-	}
-
-	if (currentEmbed.length > 0) {
-		const completedEmbed: Embed = {
-			title: "",
-			fields: currentEmbed,
-		};
-		if (
-			currentMessage.length >= 10 ||
-			messageTextLength + currentEmbedTextLength >= textLimit
-		) {
-			groupMessage.push(currentMessage);
-			currentMessage = [];
-			messageTextLength = 0;
-		}
-		currentMessage.push(completedEmbed);
-	}
-	if (currentMessage.length > 0) {
-		groupMessage.push(currentMessage);
-	}
-
-	const totalEmbedCount = groupMessage.reduce(
-		(sum, message) => sum + message.length,
-		0,
-	);
-	let embedIndex = 0;
-	for (const message of groupMessage) {
-		for (const embed of message) {
-			embedIndex++;
-			embed.title = `${toDay}のダイジェスト(${embedIndex}/${totalEmbedCount})`;
-		}
-	}
-
-	return groupMessage;
-};
-
-export const notifyDigest = async (
-	digestArticles: DigestArticle[],
+export const notifyHeading = async (
+	category: Category,
+	count: number,
 ): Promise<Result<void>> => {
-	const groupMessage = buildDigestMessages(digestArticles);
-
-	const digestErrors: string[] = [];
-
-	for (const message of groupMessage) {
-		const result = await postWebhook(
-			digestWebhookUrl,
-			{ embeds: message },
-			"notifyDigest",
-		);
-		if (!result.success) {
-			digestErrors.push(result.error);
-		}
-	}
-	if (digestErrors.length >= 1) {
-		return { success: false, error: digestErrors.join(" / ") };
-	}
-	return { success: true, data: undefined };
+	return postWebhook(
+		hotNewsWebhookUrl,
+		{ content: buildHeading(category, count) },
+		"notifyHeading",
+	);
 };
 
 export type RunSummary = {
@@ -229,9 +136,8 @@ export type RunSummary = {
 	articleCount: number;
 	recentCount: number;
 	duplicateCount: number;
-	hotCount: number;
-	digestCount: number;
-	paywalledCount: number;
+	judgeFailedCount: number;
+	categories: Record<Category, CategoryStats>;
 	errors: string[];
 };
 
@@ -240,14 +146,32 @@ const summaryTextLimit = 1900;
 const summaryErrorLimit = 10;
 const summaryErrorLength = 150;
 
+export const isMostlyCut = (stats: CategoryStats): boolean =>
+	stats.candidates > 0 && stats.cut * 2 > stats.candidates;
+
 export const buildRunSummary = (summary: RunSummary): string => {
 	const lines = [
 		`📊 feedlens 実行結果(${toDay})`,
 		`フィード: ${summary.feedCount}件(取得失敗 ${summary.fetchErrorCount}件)`,
 		`記事: ${summary.articleCount}件(解析失敗 ${summary.parseErrorCount}件) → 直近24時間 ${summary.recentCount}件`,
 		`重複除外: ${summary.duplicateCount}件`,
-		`通知: Hot ${summary.hotCount}件 / ダイジェスト ${summary.digestCount}件(うち会員限定 ${summary.paywalledCount}件)`,
+		`判定失敗: ${summary.judgeFailedCount}件(通知されません)`,
 	];
+
+	for (const category of categories) {
+		const stats = summary.categories[category];
+		lines.push(
+			`${categoryLabels[category]}(上限${stats.limit}件): Hot ${stats.candidates}件 → 通知 ${stats.notified}件 / 上限で省略 ${stats.cut}件 / 会員限定で破棄 ${stats.paywalled}件`,
+		);
+	}
+	for (const category of categories) {
+		const stats = summary.categories[category];
+		if (isMostlyCut(stats)) {
+			lines.push(
+				`⚠️ ${categoryLabels[category]}: Hot候補の半数超(${stats.cut}/${stats.candidates}件)が上限で省略されています。判定基準や上限の見直しを検討してください`,
+			);
+		}
+	}
 
 	if (summary.errors.length > 0) {
 		lines.push(`⚠️ エラー ${summary.errors.length}件`);

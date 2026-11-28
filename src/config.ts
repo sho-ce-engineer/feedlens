@@ -13,19 +13,14 @@ if (!process.env.DISCORD_HOT_WEBHOOK_URL) {
 }
 export const hotNewsWebhookUrl = process.env.DISCORD_HOT_WEBHOOK_URL;
 
-if (!process.env.DISCORD_DIGEST_WEBHOOK_URL) {
-	throw new Error("DISCORD_DIGEST_WEBHOOK_URL is not set");
-}
-export const digestWebhookUrl = process.env.DISCORD_DIGEST_WEBHOOK_URL;
-
 if (!process.env.GEMINI_MODEL) {
 	throw new Error("GEMINI_MODEL is not set");
 }
 export const geminiModel = process.env.GEMINI_MODEL;
 
-// 実行結果サマリの通知先。未設定ならダイジェストと同じチャンネルに送る
+// 実行結果サマリの通知先。未設定ならHotと同じチャンネルに送る
 export const logWebhookUrl =
-	process.env.DISCORD_LOG_WEBHOOK_URL || digestWebhookUrl;
+	process.env.DISCORD_LOG_WEBHOOK_URL || hotNewsWebhookUrl;
 
 // Geminiの同時呼び出し数。未設定・不正値なら3。無料枠のレート制限(429)に当たる場合は下げる
 const parsedGeminiConcurrency = Number.parseInt(
