@@ -118,7 +118,6 @@ export const notifyHot = async (
 export const buildHeading = (category: Category, count: number): string =>
 	`## ${categoryLabels[category]}(${count}件)`;
 
-// カテゴリの見出し。記事の前に1通だけ送る
 export const notifyHeading = async (
 	category: Category,
 	count: number,
@@ -147,7 +146,6 @@ const summaryTextLimit = 1900;
 const summaryErrorLimit = 10;
 const summaryErrorLength = 150;
 
-// Hot候補の半数を超えて上限で省略されているか。基準や上限を見直す目安にする
 export const isMostlyCut = (stats: CategoryStats): boolean =>
 	stats.candidates > 0 && stats.cut * 2 > stats.candidates;
 

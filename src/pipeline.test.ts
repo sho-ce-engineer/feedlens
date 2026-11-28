@@ -26,10 +26,9 @@ const hot = (category: Category, score: number): Judgement => ({
 	category,
 	score,
 });
-const notHot: Judgement = { isHot: false, category: "tech", score: 1 };
+const notHot: Judgement = { isHot: false };
 const fine: Summary = { summary: "要約", isPaywalled: false };
 
-// 記事のlinkごとに判定・要約の結果を決める分類器
 const makeClassifier = (
 	judgements: Record<string, Result<Judgement>>,
 	summaries: Record<string, Result<Summary>> = {},

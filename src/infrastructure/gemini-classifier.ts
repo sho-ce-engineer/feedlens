@@ -9,11 +9,29 @@ import { buildJudgePrompt, truncateDescription } from "./prompts";
 
 const criteria = CriteriaSchema.parse(criteriaJson);
 
-export const judgeSchema = z.object({
+export const judgeResponseSchema = z.object({
 	isHot: z.boolean(),
-	category: CategorySchema,
-	score: z.number().int().min(1).max(10),
+	category: CategorySchema.optional(),
+	score: z.number().int().min(1).max(10).optional(),
 });
+
+export const toJudgement = (
+	response: z.infer<typeof judgeResponseSchema>,
+): Result<Judgement> => {
+	if (!response.isHot) {
+		return { success: true, data: { isHot: false } };
+	}
+	if (response.category === undefined || response.score === undefined) {
+		return {
+			success: false,
+			error: "judge: isHot is true, but category or score is missing.",
+		};
+	}
+	return {
+		success: true,
+		data: { isHot: true, category: response.category, score: response.score },
+	};
+};
 
 const summarizeSchema = z.object({
 	summarize: z.string(),
@@ -93,7 +111,10 @@ export class GeminiClassifier implements Classifier {
 	async judge(article: Article): Promise<Result<Judgement>> {
 		const judgePrompt = buildJudgePrompt(article, criteria);
 
-		const callResult = await callGeminiWithRetry(judgePrompt, judgeSchema);
+		const callResult = await callGeminiWithRetry(
+			judgePrompt,
+			judgeResponseSchema,
+		);
 		if (!callResult.success) {
 			return { success: false, error: callResult.error };
 		}
@@ -106,10 +127,10 @@ export class GeminiClassifier implements Classifier {
 			};
 		}
 
-		let output: ReturnType<typeof judgeSchema.safeParse>;
+		let output: ReturnType<typeof judgeResponseSchema.safeParse>;
 
 		try {
-			output = judgeSchema.safeParse(JSON.parse(res.output_text));
+			output = judgeResponseSchema.safeParse(JSON.parse(res.output_text));
 		} catch {
 			return {
 				success: false,
@@ -118,7 +139,7 @@ export class GeminiClassifier implements Classifier {
 		}
 
 		if (output.success === true) {
-			return { success: true, data: output.data };
+			return toJudgement(output.data);
 		} else {
 			return { success: false, error: output.error.toString() };
 		}

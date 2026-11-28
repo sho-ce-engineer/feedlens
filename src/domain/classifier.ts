@@ -7,13 +7,14 @@ export type Summary = {
 	isPaywalled: boolean;
 };
 
-// 判定結果。isHotがfalseの記事では、categoryとscoreは使わない
-export type Judgement = {
-	isHot: boolean;
+export type HotJudgement = {
+	isHot: true;
 	category: Category;
-	// 読むべき度合い(1〜10の整数。大きいほど読むべき)
+	// 1〜10の整数。大きいほど読むべき
 	score: number;
 };
+
+export type Judgement = { isHot: false } | HotJudgement;
 
 export interface Classifier {
 	judge(article: Article): Promise<Result<Judgement>>;

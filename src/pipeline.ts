@@ -5,13 +5,12 @@ import {
 	type ClassifiedArticle,
 	categories,
 } from "./domain/article";
-import type { Classifier, Judgement } from "./domain/classifier";
+import type { Classifier, HotJudgement } from "./domain/classifier";
 import type { Result } from "./domain/result";
 
 export const summaryFallback =
 	"⚠️ 要約の生成に失敗したため、要約なしで通知しています。リンク先をご確認ください。";
 
-// 通知する記事数の上限(カテゴリごと)。点数の高い順に、上限まで通知する
 export const categoryLimits: Record<Category, number> = {
 	tech: 15,
 	product: 5,
@@ -29,8 +28,6 @@ export const filterRecent = (
 const withContext = (phase: string, article: Article, error: string): string =>
 	`[${phase}] ${article.link} ${error}`;
 
-// カテゴリごとの絞り込みの結果。
-// candidates: Hotと判定された数 / cut: 上限により要約・通知の対象にならなかった数 / paywalled: 会員限定で破棄した数
 export type SelectionStats = {
 	limit: number;
 	candidates: number;
@@ -49,9 +46,8 @@ export type PipelineResult = {
 	errors: string[];
 };
 
-type Candidate = { article: Article; judgement: Judgement };
+type Candidate = { article: Article; judgement: HotJudgement };
 
-// 点数の高い順。同点なら公開日の新しい順
 const byRank = (a: Candidate, b: Candidate): number =>
 	b.judgement.score - a.judgement.score ||
 	b.article.pubDate.getTime() - a.article.pubDate.getTime();
@@ -60,8 +56,6 @@ type SummarizeOutcome =
 	| { type: "paywalled"; errors: string[] }
 	| { type: "ok"; classified: ClassifiedArticle; errors: string[] };
 
-// 1記事を要約する。要約に失敗した記事は要約なしで残し、通知から漏らさない。
-// 会員限定と判定された記事は、本文を読めないため破棄する。
 const summarizeCandidate = async (
 	candidate: Candidate,
 	classifier: Classifier,
@@ -91,8 +85,6 @@ const summarizeCandidate = async (
 	};
 };
 
-// 順位の高い候補から要約し、会員限定で破棄された分は次の候補で埋める。
-// 上限に達するか、候補を使い切るまで続ける。
 const selectCategory = async (
 	candidates: Candidate[],
 	limit: number,
@@ -136,9 +128,6 @@ const selectCategory = async (
 	};
 };
 
-// 全記事を判定し、Hotをカテゴリ別に点数順へ並べ、上限まで要約する(通知はしない)。
-// 判定に失敗した記事は通知せず、エラーとして記録する。
-// 判定・要約(Geminiの呼び出し)は記事ごとに独立しているため、concurrency件まで並列に行う。
 export const processArticles = async (
 	articles: Article[],
 	classifier: Classifier,
@@ -172,7 +161,7 @@ export const processArticles = async (
 	const sections: Sections = { tech: [], product: [] };
 	const selection = {} as Record<Category, SelectionStats>;
 
-	// Geminiのレート制限を避けるため、カテゴリは順に処理する
+	// カテゴリを並列にすると、Geminiの同時呼び出し数がconcurrencyを超えてレート制限に当たる
 	for (const category of categories) {
 		const ranked = [...candidates[category]].sort(byRank);
 		const result = await selectCategory(
@@ -194,8 +183,7 @@ export type Sender = {
 	hot: (classified: ClassifiedArticle) => Promise<Result<void>>;
 };
 
-// カテゴリごとに、見出し → 記事の順で1件ずつ送る(Discordのレート制限を避けるため)。
-// 記事が無いカテゴリは見出しも送らない。
+// Discordのレート制限を避けるため、1件ずつ送る
 export const sendSections = async (
 	sections: Sections,
 	sender: Sender,

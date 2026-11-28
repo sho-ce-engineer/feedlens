@@ -1,6 +1,5 @@
 import { z } from "zod";
 
-// 記事の種類。技術系(tech)と、製品の紹介・レビュー系(product)を分けて扱う
 export const categories = ["tech", "product"] as const;
 export const CategorySchema = z.enum(categories);
 export type Category = z.infer<typeof CategorySchema>;
@@ -31,12 +30,12 @@ export type ArticleError = {
 	pageId?: string;
 };
 
-// 記事評価後。categoryは記事の種類、scoreは「読むべき度合い」(1〜10)
+// 記事評価後
 export const ClassifiedArticleSchema = z.object({
 	article: ArticleSchema,
 	summary: z.string(),
 	category: CategorySchema,
-	score: z.number(),
+	score: z.number().int().min(1).max(10),
 });
 
 export type ClassifiedArticle = z.infer<typeof ClassifiedArticleSchema>;
